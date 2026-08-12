@@ -1,0 +1,12 @@
+.env
+.venv/
+.garmin_tokens/
+datos.db
+__pycache__/
+.DS_Store
+historial_salud_maestro.xlsx
+.streamlit/secrets.toml
+.streamlit/secrets_para_streamlit_cloud.toml
+redbull-expense-tracker/
+nave-espacial.html
+.claude/
