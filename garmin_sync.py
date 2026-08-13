@@ -69,6 +69,12 @@ def init_api():
     try:
         api = Garmin()
         api.login(TOKEN_STORE)
+        # login() puede refrescar el access token internamente (en memoria)
+        # sin guardarlo en disco. Lo volvemos a guardar para que la próxima
+        # ejecución reutilice el token fresco en vez de pedirle a Garmin un
+        # intercambio oauth1->oauth2 nuevo cada vez (eso agota el límite
+        # de solicitudes rápido).
+        api.garth.dump(TOKEN_STORE)
         print("Sesión iniciada usando el token guardado.")
         return api
     except requests.exceptions.HTTPError as exc:
