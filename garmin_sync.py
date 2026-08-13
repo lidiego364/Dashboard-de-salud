@@ -13,6 +13,7 @@ import re
 import sqlite3
 from datetime import date, timedelta
 
+import requests
 from dotenv import load_dotenv
 from garminconnect import (
     Garmin,
@@ -69,13 +70,26 @@ def init_api():
         api = Garmin()
         api.login(TOKEN_STORE)
         print("Sesión iniciada usando el token guardado.")
-    except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError):
-        print("No hay token válido guardado, iniciando sesión con email/contraseña...")
-        api = Garmin(email=email, password=password)
-        api.login()
-        api.garth.dump(TOKEN_STORE)
-        print("Sesión iniciada y token guardado para próximas ejecuciones.")
+        return api
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        if status == 429:
+            # Límite de tasa de Garmin: no sirve reintentar con usuario/
+            # contraseña de inmediato, solo empeora el bloqueo.
+            raise SystemExit(
+                "Garmin Connect está limitando las solicitudes ahora mismo "
+                "(error 429 al refrescar el token). Es temporal: espera unos "
+                "15-30 minutos y vuelve a intentar."
+            )
+        print(f"Aviso: token guardado inválido ({exc}).")
+    except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError) as exc:
+        print(f"Aviso: no hay token válido guardado ({exc}).")
 
+    print("Iniciando sesión con email/contraseña...")
+    api = Garmin(email=email, password=password)
+    api.login()
+    api.garth.dump(TOKEN_STORE)
+    print("Sesión iniciada y token guardado para próximas ejecuciones.")
     return api
 
 
