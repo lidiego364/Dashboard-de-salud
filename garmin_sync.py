@@ -59,18 +59,33 @@ def bootstrap_token_desde_vault():
         return
     vault_token, vault_repo = cfg
     os.makedirs(TOKEN_STORE, exist_ok=True)
-    for nombre in GARMIN_TOKEN_FILES:
-        resp = requests.get(
-            f"https://api.github.com/repos/{vault_repo}/contents/{nombre}",
-            headers={
-                "Authorization": f"token {vault_token}",
-                "Accept": "application/vnd.github.raw+json",
-            },
-            timeout=15,
+    try:
+        for nombre in GARMIN_TOKEN_FILES:
+            resp = requests.get(
+                f"https://api.github.com/repos/{vault_repo}/contents/{nombre}",
+                headers={
+                    "Authorization": f"token {vault_token}",
+                    "Accept": "application/vnd.github.raw+json",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            with open(os.path.join(TOKEN_STORE, nombre), "wb") as f:
+                f.write(resp.content)
+    except requests.exceptions.RequestException as exc:
+        # No cortamos el script: sin token de la bóveda, sigue el flujo
+        # normal de abajo (token local si hay, si no login con contraseña).
+        # Limpiamos archivos a medio escribir para no dejar un token roto.
+        for nombre in GARMIN_TOKEN_FILES:
+            ruta = os.path.join(TOKEN_STORE, nombre)
+            if os.path.exists(ruta):
+                os.remove(ruta)
+        print(
+            f"Aviso: no se pudo leer la bóveda ({exc}). Revisá que "
+            "GARMIN_VAULT_TOKEN tenga acceso de 'Contents: Read and write' "
+            f"al repo {vault_repo} en GitHub."
         )
-        resp.raise_for_status()
-        with open(os.path.join(TOKEN_STORE, nombre), "wb") as f:
-            f.write(resp.content)
+        return
     print("Token de Garmin descargado desde la bóveda privada de GitHub.")
 
 
@@ -90,17 +105,20 @@ def push_token_a_vault():
         ruta_local = os.path.join(TOKEN_STORE, nombre)
         if not os.path.exists(ruta_local):
             continue
-        with open(ruta_local, "rb") as f:
-            contenido_b64 = base64.b64encode(f.read()).decode()
-        url = f"https://api.github.com/repos/{vault_repo}/contents/{nombre}"
-        actual = requests.get(url, headers=headers, timeout=15)
-        sha = actual.json().get("sha") if actual.status_code == 200 else None
-        payload = {"message": "Refresh automático de token de Garmin", "content": contenido_b64}
-        if sha:
-            payload["sha"] = sha
-        resp = requests.put(url, headers=headers, json=payload, timeout=15)
-        if resp.status_code not in (200, 201):
-            print(f"Aviso: no se pudo subir {nombre} a la bóveda ({resp.status_code}).")
+        try:
+            with open(ruta_local, "rb") as f:
+                contenido_b64 = base64.b64encode(f.read()).decode()
+            url = f"https://api.github.com/repos/{vault_repo}/contents/{nombre}"
+            actual = requests.get(url, headers=headers, timeout=15)
+            sha = actual.json().get("sha") if actual.status_code == 200 else None
+            payload = {"message": "Refresh automático de token de Garmin", "content": contenido_b64}
+            if sha:
+                payload["sha"] = sha
+            resp = requests.put(url, headers=headers, json=payload, timeout=15)
+            if resp.status_code not in (200, 201):
+                print(f"Aviso: no se pudo subir {nombre} a la bóveda ({resp.status_code}).")
+        except requests.exceptions.RequestException as exc:
+            print(f"Aviso: no se pudo subir {nombre} a la bóveda ({exc}).")
 
 
 def init_api():
