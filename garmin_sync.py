@@ -8,6 +8,7 @@ Uso:
     python garmin_sync.py
 """
 
+import base64
 import os
 import re
 import sqlite3
@@ -29,26 +30,77 @@ TOKEN_STORE = os.path.join(SCRIPT_DIR, ".garmin_tokens")
 DAYS_BACK = 30
 
 
-def bootstrap_token_desde_env():
+GARMIN_TOKEN_FILES = ("oauth1_token.json", "oauth2_token.json")
+
+
+def _vault_config():
+    """Credenciales del repo privado de GitHub usado como bóveda del token
+    (ver GARMIN_VAULT_TOKEN / GARMIN_VAULT_REPO). Devuelve None si no está
+    configurado (ej. uso local sin necesidad de bóveda)."""
+    token = os.getenv("GARMIN_VAULT_TOKEN")
+    repo = os.getenv("GARMIN_VAULT_REPO")
+    if not token or not repo:
+        return None
+    return token, repo
+
+
+def bootstrap_token_desde_vault():
     """En hosting con disco efímero (ej. Streamlit Community Cloud) el
     directorio TOKEN_STORE no sobrevive un reinicio. Si no hay token en
-    disco pero sí llegaron GARMIN_OAUTH1_TOKEN / GARMIN_OAUTH2_TOKEN como
-    variables de entorno (copiados de un login local ya autenticado), los
-    reconstruye en disco para evitar tener que resolver MFA de nuevo."""
+    disco, lo descarga del repo privado de GitHub que actúa de bóveda
+    (actualizado por el refresh local periódico) para evitar tener que
+    resolver MFA de nuevo o depender de un secret estático vencido."""
     t1 = os.path.join(TOKEN_STORE, "oauth1_token.json")
     t2 = os.path.join(TOKEN_STORE, "oauth2_token.json")
     if os.path.exists(t1) and os.path.exists(t2):
         return
-    oauth1 = os.getenv("GARMIN_OAUTH1_TOKEN")
-    oauth2 = os.getenv("GARMIN_OAUTH2_TOKEN")
-    if not oauth1 or not oauth2:
+    cfg = _vault_config()
+    if not cfg:
         return
+    vault_token, vault_repo = cfg
     os.makedirs(TOKEN_STORE, exist_ok=True)
-    with open(t1, "w") as f:
-        f.write(oauth1)
-    with open(t2, "w") as f:
-        f.write(oauth2)
-    print("Token de Garmin reconstruido desde variables de entorno.")
+    for nombre in GARMIN_TOKEN_FILES:
+        resp = requests.get(
+            f"https://api.github.com/repos/{vault_repo}/contents/{nombre}",
+            headers={
+                "Authorization": f"token {vault_token}",
+                "Accept": "application/vnd.github.raw+json",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        with open(os.path.join(TOKEN_STORE, nombre), "wb") as f:
+            f.write(resp.content)
+    print("Token de Garmin descargado desde la bóveda privada de GitHub.")
+
+
+def push_token_a_vault():
+    """Sube el token recién refrescado a la bóveda privada de GitHub, para
+    que la próxima vez que Streamlit Cloud reinicie (disco vacío) arranque
+    ya con el token fresco en vez de uno vencido."""
+    cfg = _vault_config()
+    if not cfg:
+        return
+    vault_token, vault_repo = cfg
+    headers = {
+        "Authorization": f"token {vault_token}",
+        "Accept": "application/vnd.github+json",
+    }
+    for nombre in GARMIN_TOKEN_FILES:
+        ruta_local = os.path.join(TOKEN_STORE, nombre)
+        if not os.path.exists(ruta_local):
+            continue
+        with open(ruta_local, "rb") as f:
+            contenido_b64 = base64.b64encode(f.read()).decode()
+        url = f"https://api.github.com/repos/{vault_repo}/contents/{nombre}"
+        actual = requests.get(url, headers=headers, timeout=15)
+        sha = actual.json().get("sha") if actual.status_code == 200 else None
+        payload = {"message": "Refresh automático de token de Garmin", "content": contenido_b64}
+        if sha:
+            payload["sha"] = sha
+        resp = requests.put(url, headers=headers, json=payload, timeout=15)
+        if resp.status_code not in (200, 201):
+            print(f"Aviso: no se pudo subir {nombre} a la bóveda ({resp.status_code}).")
 
 
 def init_api():
@@ -64,7 +116,7 @@ def init_api():
             "Falta GARMIN_EMAIL y/o GARMIN_PASSWORD en el archivo .env"
         )
 
-    bootstrap_token_desde_env()
+    bootstrap_token_desde_vault()
 
     try:
         api = Garmin()
@@ -75,6 +127,7 @@ def init_api():
         # intercambio oauth1->oauth2 nuevo cada vez (eso agota el límite
         # de solicitudes rápido).
         api.garth.dump(TOKEN_STORE)
+        push_token_a_vault()
         print("Sesión iniciada usando el token guardado.")
         return api
     except requests.exceptions.HTTPError as exc:
@@ -95,6 +148,7 @@ def init_api():
     api = Garmin(email=email, password=password)
     api.login()
     api.garth.dump(TOKEN_STORE)
+    push_token_a_vault()
     print("Sesión iniciada y token guardado para próximas ejecuciones.")
     return api
 
