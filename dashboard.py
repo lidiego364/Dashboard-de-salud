@@ -910,7 +910,7 @@ def run_garmin_sync():
     env = os.environ.copy()
     for nombre in (
         "GARMIN_EMAIL", "GARMIN_PASSWORD",
-        "GARMIN_OAUTH1_TOKEN", "GARMIN_OAUTH2_TOKEN",
+        "GARMIN_VAULT_TOKEN", "GARMIN_VAULT_REPO",
     ):
         valor = get_secret(nombre)
         if valor:
