@@ -419,27 +419,67 @@ def guardar_meta(peso_objetivo, ritmo_objetivo_semanal, peso_inicial, fecha_inic
 
 
 # Umbrales de la proyección de meta (ver resumen final para la justificación):
-VENTANA_RITMO_DIAS = 21       # 3 semanas: suaviza el ruido diario del peso
+HORIZONTE_TENDENCIA_DIAS = 21  # horizonte efectivo aprox. del filtro de Kalman (solo para textos de la UI)
 UMBRAL_EN_LINEA_ABS = 0.15    # kg/semana de tolerancia absoluta para "en línea"
 UMBRAL_EN_LINEA_REL = 0.25    # +/-25% del ritmo objetivo, lo que sea mayor
 UMBRAL_AGRESIVO_MULT = 2.0    # más del doble del ritmo objetivo -> alerta de ritmo agresivo
 
+# Parámetros del filtro de Kalman (modelo de "tendencia lineal local": un
+# estado de nivel/peso real + un estado de pendiente/ritmo). Es el mismo tipo
+# de enfoque que usan apps de referencia para esto -Libra, TrendWeight/Hacker's
+# Diet- para separar el peso "real" del ruido diario (agua, sodio, comida,
+# glucógeno) sin el corte abrupto de una ventana fija: cada lectura se pesa
+# según la incertidumbre acumulada, así que el ritmo se adapta solo a cambios
+# reales sin sobrerreaccionar a un mal día de la báscula.
+KALMAN_R_OBS = 0.35        # kg^2: varianza del ruido de medición (~0.6 kg de desviación estándar)
+KALMAN_Q_TENDENCIA = 2e-5  # (kg/día)^2 por día: cuánto puede variar el ritmo real de un día a otro
 
-def calcular_ritmo_real(peso_df, dias=VENTANA_RITMO_DIAS):
-    """Regresión lineal (mínimos cuadrados) sobre los últimos `dias` de peso
-    registrado, para suavizar el ruido diario. Devuelve (kg_por_semana,
-    num_puntos_usados); kg_por_semana es None si hay menos de 3 puntos."""
+
+def calcular_ritmo_real(peso_df, r_obs=KALMAN_R_OBS, q_tendencia=KALMAN_Q_TENDENCIA):
+    """Filtro de Kalman de tendencia lineal local sobre todo el historial de
+    peso disponible: en cada paso predice nivel+pendiente, y los corrige con
+    la ganancia de Kalman al llegar la siguiente lectura. Sin ventana fija:
+    la influencia de una lectura antigua se desvanece sola en vez de caerse
+    de golpe al salir de los últimos N días.
+
+    Devuelve (kg_por_semana, num_puntos_usados, serie_suavizada), donde
+    serie_suavizada es un DataFrame fecha/nivel con el peso "real" estimado
+    día a día (para dibujar la línea de tendencia). kg_por_semana y
+    serie_suavizada son None si hay menos de 3 lecturas."""
     if peso_df is None or peso_df.empty:
-        return None, 0
-    fecha_max = peso_df["fecha"].max()
-    ventana = peso_df[peso_df["fecha"] >= fecha_max - pd.Timedelta(days=dias - 1)]
-    ventana = ventana.dropna(subset=["peso"]).sort_values("fecha")
-    if len(ventana) < 3:
-        return None, len(ventana)
-    x = (ventana["fecha"] - ventana["fecha"].min()).dt.days.values.astype(float)
-    y = ventana["peso"].values.astype(float)
-    pendiente_dia, _intercepto = np.polyfit(x, y, 1)
-    return float(pendiente_dia * 7), len(ventana)
+        return None, 0, None
+    df = peso_df.dropna(subset=["peso"]).sort_values("fecha").reset_index(drop=True)
+    if len(df) < 3:
+        return None, len(df), None
+
+    nivel = float(df["peso"].iloc[0])
+    pendiente = 0.0
+    P = np.array([[r_obs, 0.0], [0.0, 1.0]])  # covarianza inicial: pendiente muy incierta
+
+    niveles = [nivel]
+    for i in range(1, len(df)):
+        dt = max((df["fecha"].iloc[i] - df["fecha"].iloc[i - 1]).days, 1)
+
+        # Predicción: el nivel avanza según la pendiente actual; la pendiente
+        # en sí hace un "paseo aleatorio" (puede cambiar de un día a otro).
+        F = np.array([[1.0, dt], [0.0, 1.0]])
+        Q = np.array([[0.0, 0.0], [0.0, q_tendencia * dt]])
+        nivel_pred = nivel + pendiente * dt
+        P_pred = F @ P @ F.T + Q
+
+        # Corrección con la lectura real (ganancia de Kalman).
+        innovacion = float(df["peso"].iloc[i]) - nivel_pred
+        S = P_pred[0, 0] + r_obs
+        K = P_pred[:, 0] / S
+
+        nivel = nivel_pred + K[0] * innovacion
+        pendiente = pendiente + K[1] * innovacion
+        P = P_pred - np.outer(K, P_pred[0, :])
+
+        niveles.append(nivel)
+
+    serie_suavizada = pd.DataFrame({"fecha": df["fecha"], "nivel": niveles})
+    return float(pendiente * 7), len(df), serie_suavizada
 
 
 ESTADO_META_INFO = {
@@ -532,7 +572,7 @@ def build_weight_df(garmin, manual):
     return peso.dropna(subset=["peso"])
 
 
-def weight_chart(garmin, manual, meta=None, ritmo_real_semanal=None):
+def weight_chart(garmin, manual, meta=None, ritmo_real_semanal=None, serie_tendencia=None):
     peso_df = build_weight_df(garmin, manual)
     fig = go.Figure()
 
@@ -543,15 +583,28 @@ def weight_chart(garmin, manual, meta=None, ritmo_real_semanal=None):
                 y=peso_df["peso"],
                 mode="lines+markers",
                 name="Peso (kg)",
-                line=dict(color=COLOR_PESO, width=2),
+                line=dict(color=COLOR_PESO, width=1, dash="dot"),
+                opacity=0.55,
                 marker=dict(
-                    size=7,
+                    size=6,
                     symbol=peso_df["fuente"].map(
                         {"manual": "diamond", "garmin": "circle"}
                     ),
                 ),
                 customdata=peso_df["fuente"],
                 hovertemplate="%{x|%Y-%m-%d}<br>Peso: %{y:.1f} kg (%{customdata})<extra></extra>",
+            )
+        )
+
+    if serie_tendencia is not None and not serie_tendencia.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=serie_tendencia["fecha"],
+                y=serie_tendencia["nivel"],
+                mode="lines",
+                name="Tendencia (Kalman)",
+                line=dict(color=COLOR_PESO, width=3),
+                hovertemplate="%{x|%Y-%m-%d}<br>Tendencia: %{y:.1f} kg<extra></extra>",
             )
         )
 
@@ -589,7 +642,12 @@ def weight_chart(garmin, manual, meta=None, ritmo_real_semanal=None):
         )
 
         ultima_fecha = peso_df["fecha"].max()
-        ultimo_peso = float(peso_df.loc[peso_df["fecha"] == ultima_fecha, "peso"].iloc[0])
+        if serie_tendencia is not None and not serie_tendencia.empty:
+            # Arranca la proyección desde el nivel suavizado (Kalman), no del
+            # último peso crudo, para que no "salte" al empalmar con su pendiente.
+            ultimo_peso = float(serie_tendencia["nivel"].iloc[-1])
+        else:
+            ultimo_peso = float(peso_df.loc[peso_df["fecha"] == ultima_fecha, "peso"].iloc[0])
 
         # Línea de proyección: extiende el ritmo real hasta cruzar la meta
         # (tope de 365 días para no distorsionar el eje si el ritmo es casi plano).
@@ -1034,7 +1092,7 @@ else:
 
 # --- Meta de peso: ritmo real (regresión suavizada) y proyección ---
 meta_actual = cargar_meta()
-ritmo_real_semanal, ritmo_real_puntos = calcular_ritmo_real(peso_df)
+ritmo_real_semanal, ritmo_real_puntos, serie_tendencia_peso = calcular_ritmo_real(peso_df)
 progreso_meta = evaluar_progreso_meta(peso_last, meta_actual, ritmo_real_semanal)
 
 pasos_last, pasos_prev, pasos_fecha = ultimo_previo(garmin, "pasos")
@@ -1153,7 +1211,7 @@ with st.container(border=True):
 with st.container(border=True):
     st.subheader("Peso")
     st.plotly_chart(
-        weight_chart(garmin, manual, meta_actual, ritmo_real_semanal),
+        weight_chart(garmin, manual, meta_actual, ritmo_real_semanal, serie_tendencia_peso),
         use_container_width=True,
     )
 
@@ -1268,7 +1326,7 @@ with st.container(border=True):
                   <div class="ts-value" style="color:{color_estado_meta}; text-shadow:0 0 14px {color_estado_meta}88;">
                     {ritmo_txt}
                   </div>
-                  <div class="ts-meta">{etiqueta_estado} · regresión de {ritmo_real_puntos}d</div>
+                  <div class="ts-meta">{etiqueta_estado} · Kalman · {ritmo_real_puntos} lecturas</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1297,7 +1355,8 @@ with st.container(border=True):
             )
 
         # Alerta de tendencia de peso (ritmo real desviado del objetivo,
-        # calculado sobre una regresión de ~3 semanas, no un solo día).
+        # calculado con un filtro de Kalman de horizonte efectivo ~3 semanas,
+        # no con el peso de un solo día).
         estado_actual_meta = progreso_meta["estado"]
         if estado_actual_meta == "agresivo":
             st.warning(
@@ -1308,17 +1367,17 @@ with st.container(border=True):
             )
         elif estado_actual_meta == "direccion_contraria":
             st.warning(
-                f"⚠️ En las últimas ~{VENTANA_RITMO_DIAS} días tu peso se mueve en dirección "
+                f"⚠️ En las últimas ~{HORIZONTE_TENDENCIA_DIAS} días tu peso se mueve en dirección "
                 f"contraria a tu meta ({progreso_meta['ritmo_real_semanal']:+.2f} kg/sem)."
             )
         elif estado_actual_meta == "estancado":
             st.warning(
-                f"⚠️ Tu peso está estancado en las últimas ~{VENTANA_RITMO_DIAS} días, "
+                f"⚠️ Tu peso está estancado en las últimas ~{HORIZONTE_TENDENCIA_DIAS} días, "
                 f"sin avance claro hacia la meta."
             )
         elif estado_actual_meta == "atrasado":
             st.warning(
-                f"⚠️ Vas más lento que tu ritmo objetivo desde hace ~{VENTANA_RITMO_DIAS} días "
+                f"⚠️ Vas más lento que tu ritmo objetivo desde hace ~{HORIZONTE_TENDENCIA_DIAS} días "
                 f"({progreso_meta['ritmo_real_semanal']:+.2f} kg/sem vs "
                 f"{progreso_meta['ritmo_objetivo_signed']:+.2f} kg/sem objetivo)."
             )
