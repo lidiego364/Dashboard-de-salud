@@ -244,6 +244,7 @@ def init_db(conn):
             dosis_mg REAL,
             zona_inyeccion TEXT,
             peso_manual REAL,
+            creatina_g REAL,
             notas TEXT
         )
         """
