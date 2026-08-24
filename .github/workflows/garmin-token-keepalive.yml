@@ -1,0 +1,25 @@
+name: Garmin token keepalive
+
+on:
+  schedule:
+    - cron: "14 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - run: python refresh_token.py
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          GARMIN_VAULT_TOKEN: ${{ secrets.GARMIN_VAULT_TOKEN }}
+          GARMIN_VAULT_REPO: lidiego364/garmin-token-vault
