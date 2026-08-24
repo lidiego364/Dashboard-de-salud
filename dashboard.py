@@ -7,6 +7,7 @@ Uso:
     streamlit run dashboard.py
 """
 
+import base64
 import io
 import os
 import sqlite3
@@ -18,6 +19,7 @@ import anthropic
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -361,6 +363,98 @@ def guardar_inyeccion(fecha, dosis_mg, zona_inyeccion, notas):
     )
     conn.commit()
     conn.close()
+
+
+def guardar_creatina(fecha, creatina_g):
+    """Registra SOLO la toma de creatina de una fecha. No toca peso ni
+    inyección de esa fecha."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """
+        INSERT INTO tracker_manual (fecha, creatina_g)
+        VALUES (?, ?)
+        ON CONFLICT(fecha) DO UPDATE SET creatina_g=excluded.creatina_g
+        """,
+        (fecha.isoformat(), creatina_g),
+    )
+    conn.commit()
+    conn.close()
+
+
+def ensure_tracker_manual_columns():
+    """Agrega la columna creatina_g a tracker_manual si falta, sin tocar
+    los datos ya guardados (para bases de datos creadas antes de este
+    campo)."""
+    conn = sqlite3.connect(DB_PATH)
+    existentes = {row[1] for row in conn.execute("PRAGMA table_info(tracker_manual)")}
+    if "creatina_g" not in existentes:
+        conn.execute("ALTER TABLE tracker_manual ADD COLUMN creatina_g REAL")
+        conn.commit()
+    conn.close()
+
+
+def _vault_config():
+    """Credenciales del repo privado de GitHub usado como bóveda (ver
+    GARMIN_VAULT_TOKEN / GARMIN_VAULT_REPO). Devuelve None si no está
+    configurado (ej. uso local sin necesidad de bóveda)."""
+    token = get_secret("GARMIN_VAULT_TOKEN")
+    repo = get_secret("GARMIN_VAULT_REPO")
+    if not token or not repo:
+        return None
+    return token, repo
+
+
+def pull_db_desde_vault():
+    """Streamlit Community Cloud tiene disco efímero: si el contenedor se
+    reinició y datos.db no existe, lo descarga de la bóveda privada antes
+    de arrancar. Sin esto, el peso/inyecciones/creatina cargados a mano
+    (que no tienen otra fuente, a diferencia de las métricas de Garmin)
+    se perderían para siempre en cada reinicio."""
+    if os.path.exists(DB_PATH):
+        return False
+    cfg = _vault_config()
+    if not cfg:
+        return False
+    token, repo = cfg
+    try:
+        resp = requests.get(
+            f"https://api.github.com/repos/{repo}/contents/datos.db",
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.raw+json",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        with open(DB_PATH, "wb") as f:
+            f.write(resp.content)
+        return True
+    except requests.exceptions.RequestException:
+        return False
+
+
+def push_db_a_vault():
+    """Sube datos.db a la bóveda privada después de guardar algo manual o
+    sincronizar con Garmin, para que sobreviva un reinicio del contenedor
+    efímero de Streamlit Cloud. Si falla, no corta el flujo -- el próximo
+    guardado exitoso lo vuelve a intentar."""
+    cfg = _vault_config()
+    if not cfg:
+        return
+    token, repo = cfg
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
+    try:
+        with open(DB_PATH, "rb") as f:
+            contenido_b64 = base64.b64encode(f.read()).decode()
+        url = f"https://api.github.com/repos/{repo}/contents/datos.db"
+        actual = requests.get(url, headers=headers, timeout=15)
+        sha = actual.json().get("sha") if actual.status_code == 200 else None
+        payload = {"message": "Actualiza datos.db desde el dashboard", "content": contenido_b64}
+        if sha:
+            payload["sha"] = sha
+        requests.put(url, headers=headers, json=payload, timeout=15)
+    except requests.exceptions.RequestException:
+        pass
 
 
 def ensure_meta_table():
@@ -962,17 +1056,18 @@ def build_context_summary(garmin, manual):
         )
 
     lines.append("")
-    lines.append("Historial completo del tracker manual (dosis, peso manual, notas):")
+    lines.append("Historial completo del tracker manual (dosis, peso manual, creatina, notas):")
     if manual.empty:
         lines.append("(sin registros)")
     else:
-        lines.append("fecha | dosis_mg | zona_inyeccion | peso_manual | notas")
+        lines.append("fecha | dosis_mg | zona_inyeccion | peso_manual | creatina_g | notas")
         for _, row in manual.sort_values("fecha").iterrows():
             lines.append(
                 f"{row['fecha'].date()} | "
                 f"{row['dosis_mg'] if pd.notnull(row['dosis_mg']) else '-'} | "
                 f"{row['zona_inyeccion'] or '-'} | "
                 f"{row['peso_manual'] if pd.notnull(row['peso_manual']) else '-'} | "
+                f"{row['creatina_g'] if pd.notnull(row['creatina_g']) else '-'} | "
                 f"{row['notas'] or '-'}"
             )
 
@@ -1060,6 +1155,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+pull_db_desde_vault()
+
 if not os.path.exists(DB_PATH):
     st.warning(
         "No se encontró datos.db. Corre `python garmin_sync.py` al menos una vez, "
@@ -1070,6 +1167,7 @@ if not os.path.exists(DB_PATH):
             result = run_garmin_sync()
         if result.returncode == 0:
             st.session_state["last_sync_log"] = result.stdout
+            push_db_a_vault()
             st.cache_data.clear()
             st.toast("Datos actualizados.", icon="✅")
             st.rerun()
@@ -1079,6 +1177,7 @@ if not os.path.exists(DB_PATH):
     st.stop()
 
 ensure_meta_table()
+ensure_tracker_manual_columns()
 garmin, manual, detalle = load_data()
 
 # --- Indicadores HUD del día ---
@@ -1146,6 +1245,7 @@ with b1:
             result = run_garmin_sync()
         if result.returncode == 0:
             st.session_state["last_sync_log"] = result.stdout
+            push_db_a_vault()
             st.cache_data.clear()
             st.toast("Datos actualizados.", icon="✅")
             st.rerun()
@@ -1577,6 +1677,7 @@ with st.container(border=True):
                     "dosis_mg": "Dosis (mg)",
                     "zona_inyeccion": "Zona",
                     "peso_manual": "Peso manual (kg)",
+                    "creatina_g": "Creatina (g)",
                     "notas": "Notas",
                 }
             ),
@@ -1587,7 +1688,7 @@ with st.container(border=True):
 st.divider()
 
 st.subheader("Registro manual")
-fcol1, fcol2 = st.columns(2)
+fcol1, fcol2, fcol3 = st.columns(3)
 
 with fcol1:
     with st.form("form_peso", clear_on_submit=True):
@@ -1600,6 +1701,7 @@ with fcol1:
         if st.form_submit_button("Guardar peso"):
             if peso_input > 0:
                 guardar_peso(fecha_peso, peso_input)
+                push_db_a_vault()
                 st.cache_data.clear()
                 st.toast("Peso guardado.", icon="⚖️")
                 st.rerun()
@@ -1619,8 +1721,27 @@ with fcol2:
         if st.form_submit_button("Guardar inyección"):
             if dosis_input > 0:
                 guardar_inyeccion(fecha_iny, dosis_input, zona_input, notas_input or None)
+                push_db_a_vault()
                 st.cache_data.clear()
                 st.toast("Inyección registrada.", icon="💉")
+                st.rerun()
+            else:
+                st.warning("Ingresa una dosis mayor que 0.")
+
+with fcol3:
+    with st.form("form_creatina", clear_on_submit=True):
+        st.markdown('<div class="form-title">🥤 REGISTRO DE CREATINA</div>', unsafe_allow_html=True)
+        st.caption("Para uso diario. No toca peso ni inyección de esa fecha.")
+        fecha_creatina = st.date_input("Fecha", value=date.today(), key="fecha_creatina")
+        creatina_input = st.number_input(
+            "Dosis (g)", min_value=0.0, step=0.5, value=5.0, format="%.1f", key="creatina_input"
+        )
+        if st.form_submit_button("Guardar creatina"):
+            if creatina_input > 0:
+                guardar_creatina(fecha_creatina, creatina_input)
+                push_db_a_vault()
+                st.cache_data.clear()
+                st.toast("Creatina registrada.", icon="🥤")
                 st.rerun()
             else:
                 st.warning("Ingresa una dosis mayor que 0.")
