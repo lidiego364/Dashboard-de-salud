@@ -50,13 +50,13 @@ ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DIAS_CONTEXTO_IA = 14
 DASHBOARD_PASSWORD = get_secret("DASHBOARD_PASSWORD")
 
-# --- Paleta HUD / Jarvis: cian, azul eléctrico, ámbar sobre fondo oscuro ---
-CY = "#00d9ff"          # cian brillante (acento principal)
-AMBER = "#ffa726"       # ámbar/naranja sci-fi
-NEON_GREEN = "#39ff9e"  # verde neón (estado / readiness)
-GRID = "rgba(0,217,255,0.08)"
-AXIS_LINE = "rgba(0,217,255,0.28)"
-TXT = "#8fb8cc"
+# --- Paleta "Neon Court": pádel/tenis nocturno + telemetría futurista ---
+CY = "#46e6d2"          # turquesa de pista (datos)
+AMBER = "#dfff43"       # lima de pelota (acción / objetivo)
+NEON_GREEN = "#7dff83"  # verde de estado / recuperación
+GRID = "rgba(70,230,210,0.09)"
+AXIS_LINE = "rgba(70,230,210,0.30)"
+TXT = "#9eb9b5"
 
 COLOR_PESO = CY
 COLOR_DOSIS = AMBER
@@ -104,7 +104,12 @@ COLS_DETALLE_ACTIVIDAD = [
 ]
 COLOR_ZONAS_FC = [CY, "#39d0c8", AMBER, "#ff8a3d", "#ff5252"]
 
-st.set_page_config(page_title="Health Monitoring System", layout="wide")
+st.set_page_config(
+    page_title="HELIOS COURT · Performance Lab",
+    page_icon="🎾",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +272,144 @@ hr { border-color: rgba(0,217,255,0.2) !important; }
 .ts-meta {
   font-family: 'Share Tech Mono', monospace; letter-spacing: 1px;
   color: #6fa8c7; font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------------------
+   HELIOS COURT / interfaz de pádel y tenis futurista
+   ------------------------------------------------------------------ */
+:root {
+  --court:#46e6d2; --ball:#dfff43; --match:#7dff83;
+  --ink:#eafff9; --muted:#8ba8a3; --panel:rgba(7,24,25,.86);
+}
+
+.stApp {
+  background-color:#031111;
+  background-image:
+    radial-gradient(circle at 88% 6%, rgba(223,255,67,.12), transparent 23rem),
+    radial-gradient(circle at 5% 32%, rgba(70,230,210,.12), transparent 28rem),
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(155deg, #061b1b 0%, #031111 48%, #07191a 100%);
+  background-size:auto, auto, 44px 44px, 44px 44px, auto;
+}
+.block-container { max-width:1440px; padding-top:1.25rem; padding-bottom:5rem; }
+[data-testid="stHeader"] { background:rgba(3,17,17,.68); backdrop-filter:blur(14px); }
+[data-testid="stToolbar"] { opacity:.45; }
+
+h1,h2,h3 { color:var(--ink)!important; }
+h2,h3 {
+  border-left:0; padding-left:0; letter-spacing:2.5px;
+  text-shadow:none;
+}
+h2::after,h3::after {
+  content:""; display:block; width:54px; height:2px; margin-top:8px;
+  background:linear-gradient(90deg,var(--ball),transparent);
+  box-shadow:0 0 12px rgba(223,255,67,.55);
+}
+
+/* Hero: marcador + cancha en perspectiva */
+.hud-header {
+  min-height:190px; overflow:hidden; padding:28px 34px; margin:4px 0 22px;
+  border:1px solid rgba(70,230,210,.30); border-radius:20px;
+  background:
+    linear-gradient(110deg,rgba(3,17,17,.97) 0%,rgba(5,29,27,.90) 52%,rgba(5,42,35,.58) 100%);
+  box-shadow:0 28px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.hud-header::before {
+  width:46%; height:150%; left:auto; right:5%; top:-25%;
+  border:2px solid rgba(223,255,67,.34); border-radius:10px;
+  transform:perspective(430px) rotateX(59deg) rotateZ(-7deg);
+  background:
+    linear-gradient(90deg,transparent 49.6%,rgba(255,255,255,.23) 49.8%,rgba(255,255,255,.23) 50.2%,transparent 50.4%),
+    linear-gradient(transparent 49.5%,rgba(255,255,255,.20) 49.8%,rgba(255,255,255,.20) 50.2%,transparent 50.5%);
+  box-shadow:inset 0 0 55px rgba(70,230,210,.10),0 0 40px rgba(223,255,67,.09);
+}
+.hud-header::after {
+  width:84px; height:84px; right:26%; bottom:24%; border:0; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#f5ff9a 0%,var(--ball) 42%,#8ca600 100%);
+  box-shadow:0 0 38px rgba(223,255,67,.44); opacity:.88;
+}
+.hud-header-left,.hud-header-right { position:relative; z-index:2; }
+.hud-header-left { max-width:620px; }
+.hud-title {
+  font-size:clamp(1.75rem,3vw,3.2rem); line-height:1.02; letter-spacing:1px;
+  color:var(--ink); text-shadow:none;
+}
+.hud-title .court-accent { color:var(--ball); }
+.hud-sub { color:var(--court); font-size:.78rem; letter-spacing:2.6px; margin-top:10px; }
+.hud-eyebrow {
+  display:inline-flex; align-items:center; gap:8px; margin-bottom:13px;
+  color:var(--ball); font:700 .68rem 'Share Tech Mono',monospace; letter-spacing:2px;
+}
+.hud-eyebrow::before { content:""; width:22px; height:2px; background:var(--ball); }
+.hud-header-right {
+  padding:14px 16px; border:1px solid rgba(70,230,210,.24); border-radius:12px;
+  background:rgba(2,14,14,.58); backdrop-filter:blur(10px);
+}
+.hud-clock { color:var(--ink); }
+.hud-status,.status-dot { color:var(--ball); }
+.status-dot { background:var(--ball); box-shadow:0 0 10px var(--ball); }
+
+/* Tarjetas tipo marcador */
+[data-testid="stMetric"] {
+  min-height:122px; padding:17px 18px 15px;
+  background:linear-gradient(145deg,rgba(8,32,31,.92),rgba(4,20,20,.92));
+  border:1px solid rgba(70,230,210,.18); border-radius:16px;
+  box-shadow:0 15px 35px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.035);
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+}
+[data-testid="stMetric"]:hover { transform:translateY(-3px); border-color:rgba(223,255,67,.44); box-shadow:0 20px 42px rgba(0,0,0,.28); }
+[data-testid="stMetric"]::before { content:"LIVE"; width:auto; height:auto; border:0; top:13px; right:14px; left:auto; color:rgba(223,255,67,.62); font:600 .55rem 'Share Tech Mono',monospace; letter-spacing:1.5px; }
+[data-testid="stMetric"]::after { width:28px; height:2px; left:18px; right:auto; bottom:13px; border:0; background:var(--ball); box-shadow:0 0 9px rgba(223,255,67,.6); }
+[data-testid="stMetricLabel"] p,[data-testid="stMetricLabel"] div { color:var(--muted)!important; }
+[data-testid="stMetricValue"] { color:var(--ink)!important; font-size:1.85rem; text-shadow:none; }
+
+/* Paneles, gráficos y formularios */
+[data-testid="stVerticalBlockBorderWrapper"], [data-testid="stForm"] {
+  border:1px solid rgba(70,230,210,.16)!important; border-radius:18px;
+  background:linear-gradient(145deg,rgba(7,29,28,.88),rgba(3,17,17,.88));
+  box-shadow:0 22px 55px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.03);
+}
+.ts-card { border-radius:15px; border-color:rgba(70,230,210,.22); background:rgba(7,29,28,.78); }
+.ts-card::before,.ts-card::after { border-color:var(--ball); border-radius:2px; }
+.ts-label,.ts-meta { color:var(--muted); }
+
+.stButton>button,.stDownloadButton>button {
+  min-height:44px; border-radius:999px; padding-inline:20px;
+  background:rgba(70,230,210,.075); color:var(--court); border-color:rgba(70,230,210,.42);
+}
+.stButton>button:hover,.stDownloadButton>button:hover { background:rgba(70,230,210,.16); border-color:var(--court); box-shadow:0 0 24px rgba(70,230,210,.18); }
+.stButton>button[kind="primary"],[data-testid="stBaseButton-primary"],[data-testid="baseButton-primary"] {
+  color:#0b1711; background:var(--ball); border-color:var(--ball); font-weight:700;
+  box-shadow:0 0 24px rgba(223,255,67,.20);
+}
+.stButton>button[kind="primary"]:hover,[data-testid="stBaseButton-primary"]:hover,[data-testid="baseButton-primary"]:hover {
+  color:#06110d; background:#efff8e; border-color:#efff8e; box-shadow:0 0 30px rgba(223,255,67,.40);
+}
+[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea {
+  border-radius:10px!important; background:rgba(3,17,17,.82)!important; border-color:rgba(70,230,210,.20)!important;
+}
+hr { border-color:rgba(70,230,210,.12)!important; margin:2rem 0!important; }
+[data-testid="stDataFrame"] { border-radius:14px; overflow:hidden; }
+[data-testid="stExpander"] { border-color:rgba(70,230,210,.16); border-radius:13px; background:rgba(3,17,17,.42); }
+
+.court-strip {
+  display:flex; gap:8px; flex-wrap:wrap; margin:-8px 0 18px;
+  color:var(--muted); font:600 .65rem 'Share Tech Mono',monospace; letter-spacing:1.5px;
+}
+.court-chip { padding:7px 11px; border:1px solid rgba(70,230,210,.18); border-radius:999px; background:rgba(4,23,22,.65); }
+.court-chip b { color:var(--ball); font-weight:600; }
+
+@media (max-width:800px) {
+  .block-container { padding:1rem .8rem 3rem; }
+  .hud-header { min-height:220px; padding:24px 20px; align-items:flex-end; }
+  .hud-header::before { width:78%; right:-23%; opacity:.62; }
+  .hud-header::after { width:58px; height:58px; right:13%; bottom:49%; }
+  .hud-header-right { width:100%; text-align:left; padding:10px 12px; }
+  .hud-clock { font-size:.86rem; }
+  [data-testid="stHorizontalBlock"] { gap:.65rem; }
+  [data-testid="column"] { min-width:calc(50% - .4rem)!important; flex:1 1 calc(50% - .4rem)!important; }
+  [data-testid="stMetric"] { min-height:108px; }
 }
 </style>
 """
@@ -1115,8 +1258,9 @@ def check_password():
         """
         <div class="hud-header" style="justify-content:center; text-align:center;">
           <div>
-            <div class="hud-title">HEALTH MONITORING SYSTEM</div>
-            <div class="hud-sub">ACCESO RESTRINGIDO // INGRESA TU CLAVE</div>
+            <div class="hud-eyebrow">PLAYER ACCESS</div>
+            <div class="hud-title">HELIOS <span class="court-accent">COURT</span></div>
+            <div class="hud-sub">PERFORMANCE LAB // INGRESA TU CLAVE</div>
           </div>
         </div>
         """,
@@ -1143,13 +1287,26 @@ st.markdown(
     f"""
     <div class="hud-header">
       <div class="hud-header-left">
-        <div class="hud-title">HEALTH MONITORING SYSTEM</div>
-        <div class="hud-sub">PANEL PERSONAL DE SALUD // ENLACE GARMIN</div>
+        <div class="hud-eyebrow">PLAYER PERFORMANCE SYSTEM</div>
+        <div class="hud-title">HELIOS <span class="court-accent">COURT</span></div>
+        <div class="hud-sub">SALUD · RECUPERACIÓN · RENDIMIENTO // GARMIN LIVE</div>
       </div>
       <div class="hud-header-right">
         <div class="hud-clock">{ahora.strftime('%Y-%m-%d')} · {ahora.strftime('%H:%M:%S')}</div>
         <div class="hud-status"><span class="status-dot"></span>SISTEMA ACTIVO</div>
       </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="court-strip">
+      <span class="court-chip"><b>01</b> BODY</span>
+      <span class="court-chip"><b>02</b> RECOVERY</span>
+      <span class="court-chip"><b>03</b> LOAD</span>
+      <span class="court-chip"><b>04</b> COURT PERFORMANCE</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1199,7 +1356,7 @@ sueno_last, sueno_prev, sueno_fecha = ultimo_previo(garmin, "horas_sueno")
 hrv_last, hrv_prev, hrv_fecha = ultimo_previo(garmin, "hrv_ms")
 tr_last, tr_prev, tr_fecha = ultimo_previo(garmin, "training_readiness")
 
-m1, m2, m3, m4, m5 = st.columns(5)
+m1, m2, m3 = st.columns(3)
 with m1:
     st.metric(
         "Peso",
@@ -1222,14 +1379,15 @@ with m3:
         delta=(f"{sueno_last - sueno_prev:+.1f} h" if sueno_last is not None and sueno_prev is not None else None),
         help=(f"Último registro: {sueno_fecha.date()}" if sueno_fecha is not None else None),
     )
-with m4:
+mr1, mr2 = st.columns(2)
+with mr1:
     st.metric(
         "HRV",
         f"{int(hrv_last)} ms" if hrv_last is not None else "—",
         delta=(f"{int(hrv_last - hrv_prev):+} ms" if hrv_last is not None and hrv_prev is not None else None),
         help=(f"Último registro: {hrv_fecha.date()}" if hrv_fecha is not None else None),
     )
-with m5:
+with mr2:
     st.metric(
         "Readiness",
         f"{int(tr_last)}/100" if tr_last is not None else "—",
