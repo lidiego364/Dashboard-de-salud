@@ -187,6 +187,21 @@ NUEVAS_COLUMNAS_GARMIN_METRICS = {
     "sueno_rem_h": "REAL",
     "sueno_ligero_h": "REAL",
     "respiracion_nocturna": "REAL",
+    "respiracion_min_nocturna": "REAL",
+    "respiracion_max_nocturna": "REAL",
+    "spo2_promedio_sueno": "REAL",
+    "spo2_minimo_sueno": "REAL",
+    "sleep_need_min": "REAL",
+    "sleep_start_local": "TEXT",
+    "sleep_end_local": "TEXT",
+    "body_battery_bedtime": "INTEGER",
+    "body_battery_wake": "INTEGER",
+    "body_battery_recharge": "INTEGER",
+    "body_battery_daily_drain": "INTEGER",
+    "skin_temp_c": "REAL",
+    "skin_temp_available": "INTEGER",
+    "skin_temp_calibration_days": "INTEGER",
+    "source_device_id": "TEXT",
     "carga_entrenamiento": "INTEGER",
     "estado_entrenamiento": "TEXT",
 }
@@ -467,10 +482,43 @@ def fetch_day_metrics(api, day_str):
     return pasos, fc_reposo, calorias_activas, calorias_reposo
 
 
+def _timestamp_iso_local(valor):
+    """Convierte epoch en milisegundos a ISO local sin asumir zona horaria.
+
+    Garmin entrega los campos *TimestampLocal como epoch que representa la
+    hora local del dispositivo. Se conserva sin offset para evitar desplazar
+    artificialmente la hora de dormir/despertar.
+    """
+    if valor is None:
+        return None
+    try:
+        from datetime import datetime
+        # Garmin codifica *TimestampLocal como epoch cuyos componentes UTC
+        # representan la hora local del reloj; utcfromtimestamp evita aplicar
+        # otra vez la zona horaria de la máquina que ejecuta el sync.
+        return datetime.utcfromtimestamp(float(valor) / 1000).isoformat(timespec="seconds")
+    except (TypeError, ValueError, OSError):
+        return None
+
+
 def fetch_sleep_metrics(api, day_str):
-    """Extrae de get_sleep_data: horas totales, sleep score, fases (profundo,
-    REM, ligero en horas) y respiración nocturna promedio.
-    Devuelve (horas, score, profundo_h, rem_h, ligero_h, respiracion)."""
+    """Extrae sueño y recuperación nocturna sin convertir faltantes en cero.
+
+    Devuelve un dict para poder ampliar campos sin romper el histórico. El
+    Recharge usa los extremos de ``sleepBodyBattery``; ``bodyBatteryChange``
+    queda como respaldo cuando la serie no está disponible.
+    """
+    vacio = {
+        "horas_sueno": None, "sleep_score": None, "sueno_profundo_h": None,
+        "sueno_rem_h": None, "sueno_ligero_h": None,
+        "respiracion_nocturna": None, "respiracion_min_nocturna": None,
+        "respiracion_max_nocturna": None, "sleep_need_min": None,
+        "sleep_start_local": None, "sleep_end_local": None,
+        "body_battery_bedtime": None, "body_battery_wake": None,
+        "body_battery_recharge": None, "skin_temp_c": None,
+        "skin_temp_available": None, "skin_temp_calibration_days": None,
+        "source_device_id": None,
+    }
     try:
         sleep_data = api.get_sleep_data(day_str)
         dto = sleep_data.get("dailySleepDTO") or {}
@@ -485,11 +533,53 @@ def fetch_sleep_metrics(api, day_str):
         profundo_h = a_horas("deepSleepSeconds")
         rem_h = a_horas("remSleepSeconds")
         ligero_h = a_horas("lightSleepSeconds")
-        respiracion = dto.get("averageRespirationValue")
-        return horas_sueno, sleep_score, profundo_h, rem_h, ligero_h, respiracion
+        need = dto.get("sleepNeed") or {}
+        bb_values = [
+            x.get("value") for x in (sleep_data.get("sleepBodyBattery") or [])
+            if isinstance(x, dict) and x.get("value") is not None
+        ]
+        bb_bedtime = bb_values[0] if bb_values else None
+        bb_wake = bb_values[-1] if bb_values else None
+        bb_recharge = (
+            int(bb_wake - bb_bedtime)
+            if bb_bedtime is not None and bb_wake is not None
+            else sleep_data.get("bodyBatteryChange")
+        )
+        return {
+            "horas_sueno": horas_sueno,
+            "sleep_score": sleep_score,
+            "sueno_profundo_h": profundo_h,
+            "sueno_rem_h": rem_h,
+            "sueno_ligero_h": ligero_h,
+            "respiracion_nocturna": dto.get("averageRespirationValue"),
+            "respiracion_min_nocturna": dto.get("lowestRespirationValue"),
+            "respiracion_max_nocturna": dto.get("highestRespirationValue"),
+            "sleep_need_min": need.get("actual"),
+            "sleep_start_local": _timestamp_iso_local(dto.get("sleepStartTimestampLocal")),
+            "sleep_end_local": _timestamp_iso_local(dto.get("sleepEndTimestampLocal")),
+            "body_battery_bedtime": bb_bedtime,
+            "body_battery_wake": bb_wake,
+            "body_battery_recharge": bb_recharge,
+            # El payload confirma disponibilidad/calibración, pero esta versión
+            # de garminconnect no expone todavía el valor numérico de piel.
+            "skin_temp_c": None,
+            "skin_temp_available": int(bool(sleep_data.get("skinTempDataExists"))),
+            "skin_temp_calibration_days": sleep_data.get("skinTempCalibrationDays"),
+            "source_device_id": str(need.get("deviceId")) if need.get("deviceId") else None,
+        }
     except Exception as exc:
         print(f"  Aviso: no se pudo obtener sueño de {day_str}: {exc}")
-        return None, None, None, None, None, None
+        return vacio
+
+
+def fetch_spo2(api, day_str):
+    """SpO2 medio y mínimo durante el sueño; ambos son opcionales."""
+    try:
+        datos = api.get_spo2_data(day_str) or {}
+        return datos.get("avgSleepSpO2"), datos.get("lowestSpO2")
+    except Exception as exc:
+        print(f"  Aviso: no se pudo obtener SpO2 de {day_str}: {exc}")
+        return None, None
 
 
 def fetch_training_status(api, day_str):
@@ -574,8 +664,7 @@ def fetch_vo2max(api, day_str):
 
 
 def fetch_body_battery_by_day(api, start, end):
-    """Devuelve {fecha: (max, min)} de Body Battery, en una sola llamada
-    de rango. Los valores diarios vienen dentro de bodyBatteryValuesArray."""
+    """Devuelve máximos/mínimos y desgaste diario en una llamada de rango."""
     resultado = {}
     try:
         datos = api.get_body_battery(start.isoformat(), end.isoformat())
@@ -587,7 +676,10 @@ def fetch_body_battery_by_day(api, start, end):
                 if isinstance(v, list) and len(v) > 1 and v[1] is not None
             ]
             if fecha and valores:
-                resultado[fecha] = (max(valores), min(valores))
+                resultado[fecha] = {
+                    "max": max(valores), "min": min(valores),
+                    "drain": entrada.get("drained"),
+                }
     except Exception as exc:
         print(f"  Aviso: no se pudo obtener Body Battery: {exc}")
     return resultado
@@ -626,6 +718,10 @@ def sync():
         "sueno_rem_h": 0,
         "sueno_ligero_h": 0,
         "respiracion_nocturna": 0,
+        "spo2_promedio_sueno": 0,
+        "body_battery_recharge": 0,
+        "sleep_need_min": 0,
+        "skin_temp_c": 0,
         "carga_entrenamiento": 0,
         "estado_entrenamiento": 0,
     }
@@ -636,14 +732,21 @@ def sync():
         print(f"Procesando {day_str}...")
 
         pasos, fc_reposo, calorias_activas, calorias_reposo = fetch_day_metrics(api, day_str)
-        (
-            horas_sueno,
-            sleep_score,
-            sueno_profundo_h,
-            sueno_rem_h,
-            sueno_ligero_h,
-            respiracion_nocturna,
-        ) = fetch_sleep_metrics(api, day_str)
+        sleep = fetch_sleep_metrics(api, day_str)
+        horas_sueno = sleep["horas_sueno"]
+        sleep_score = sleep["sleep_score"]
+        sueno_profundo_h = sleep["sueno_profundo_h"]
+        sueno_rem_h = sleep["sueno_rem_h"]
+        sueno_ligero_h = sleep["sueno_ligero_h"]
+        respiracion_nocturna = sleep["respiracion_nocturna"]
+        # SpO2 es un endpoint adicional y frecuentemente viene vacío. Para no
+        # añadir 30 solicitudes por sync (Garmin aplica rate limits estrictos),
+        # solo consultamos los tres días más recientes. El histórico se acumula
+        # de forma natural sin convertir faltantes en cero.
+        if (end - current).days <= 2:
+            spo2_promedio_sueno, spo2_minimo_sueno = fetch_spo2(api, day_str)
+        else:
+            spo2_promedio_sueno = spo2_minimo_sueno = None
         hrv_ms = fetch_hrv(api, day_str)
         training_readiness = fetch_training_readiness(api, day_str)
         estres_promedio = fetch_stress(api, day_str)
@@ -651,8 +754,10 @@ def sync():
         carga_entrenamiento, estado_entrenamiento = fetch_training_status(api, day_str)
         peso_kg = weights_by_date.get(day_str)
 
-        bb = body_battery_by_date.get(day_str)
-        body_battery_max, body_battery_min = bb if bb else (None, None)
+        bb = body_battery_by_date.get(day_str) or {}
+        body_battery_max = bb.get("max")
+        body_battery_min = bb.get("min")
+        body_battery_daily_drain = bb.get("drain")
 
         act_info = activities_by_day.get(day_str)
         tipo_actividad = ", ".join(act_info["tipos"]) if act_info else None
@@ -674,6 +779,10 @@ def sync():
             ("sueno_rem_h", sueno_rem_h),
             ("sueno_ligero_h", sueno_ligero_h),
             ("respiracion_nocturna", respiracion_nocturna),
+            ("spo2_promedio_sueno", spo2_promedio_sueno),
+            ("body_battery_recharge", sleep["body_battery_recharge"]),
+            ("sleep_need_min", sleep["sleep_need_min"]),
+            ("skin_temp_c", sleep["skin_temp_c"]),
             ("carga_entrenamiento", carga_entrenamiento),
             ("estado_entrenamiento", estado_entrenamiento),
         ):
@@ -689,9 +798,15 @@ def sync():
                 body_battery_max, body_battery_min, estres_promedio, vo2max,
                 calorias_activas, calorias_reposo, perdida_liquidos_ml,
                 sueno_profundo_h, sueno_rem_h, sueno_ligero_h,
-                respiracion_nocturna, carga_entrenamiento, estado_entrenamiento
+                respiracion_nocturna, respiracion_min_nocturna,
+                respiracion_max_nocturna, spo2_promedio_sueno, spo2_minimo_sueno,
+                sleep_need_min, sleep_start_local, sleep_end_local,
+                body_battery_bedtime, body_battery_wake, body_battery_recharge,
+                body_battery_daily_drain, skin_temp_c, skin_temp_available,
+                skin_temp_calibration_days, source_device_id,
+                carga_entrenamiento, estado_entrenamiento
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fecha) DO UPDATE SET
                 peso_kg=excluded.peso_kg,
                 pasos=excluded.pasos,
@@ -714,6 +829,21 @@ def sync():
                 sueno_rem_h=excluded.sueno_rem_h,
                 sueno_ligero_h=excluded.sueno_ligero_h,
                 respiracion_nocturna=excluded.respiracion_nocturna,
+                respiracion_min_nocturna=excluded.respiracion_min_nocturna,
+                respiracion_max_nocturna=excluded.respiracion_max_nocturna,
+                spo2_promedio_sueno=COALESCE(excluded.spo2_promedio_sueno, garmin_metrics.spo2_promedio_sueno),
+                spo2_minimo_sueno=COALESCE(excluded.spo2_minimo_sueno, garmin_metrics.spo2_minimo_sueno),
+                sleep_need_min=excluded.sleep_need_min,
+                sleep_start_local=excluded.sleep_start_local,
+                sleep_end_local=excluded.sleep_end_local,
+                body_battery_bedtime=excluded.body_battery_bedtime,
+                body_battery_wake=excluded.body_battery_wake,
+                body_battery_recharge=excluded.body_battery_recharge,
+                body_battery_daily_drain=excluded.body_battery_daily_drain,
+                skin_temp_c=COALESCE(excluded.skin_temp_c, garmin_metrics.skin_temp_c),
+                skin_temp_available=excluded.skin_temp_available,
+                skin_temp_calibration_days=excluded.skin_temp_calibration_days,
+                source_device_id=excluded.source_device_id,
                 carga_entrenamiento=excluded.carga_entrenamiento,
                 estado_entrenamiento=excluded.estado_entrenamiento
             """,
@@ -740,6 +870,21 @@ def sync():
                 sueno_rem_h,
                 sueno_ligero_h,
                 respiracion_nocturna,
+                sleep["respiracion_min_nocturna"],
+                sleep["respiracion_max_nocturna"],
+                spo2_promedio_sueno,
+                spo2_minimo_sueno,
+                sleep["sleep_need_min"],
+                sleep["sleep_start_local"],
+                sleep["sleep_end_local"],
+                sleep["body_battery_bedtime"],
+                sleep["body_battery_wake"],
+                sleep["body_battery_recharge"],
+                body_battery_daily_drain,
+                sleep["skin_temp_c"],
+                sleep["skin_temp_available"],
+                sleep["skin_temp_calibration_days"],
+                sleep["source_device_id"],
                 carga_entrenamiento,
                 estado_entrenamiento,
             ),

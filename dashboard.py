@@ -24,6 +24,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 import reportes
+import health_analytics as ha
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(SCRIPT_DIR, "datos.db")
@@ -400,6 +401,17 @@ hr { border-color:rgba(70,230,210,.12)!important; margin:2rem 0!important; }
 .court-chip { padding:7px 11px; border:1px solid rgba(70,230,210,.18); border-radius:999px; background:rgba(4,23,22,.65); }
 .court-chip b { color:var(--ball); font-weight:600; }
 
+.recovery-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:8px 0 14px; }
+.recovery-item {
+  padding:14px; border:1px solid rgba(70,230,210,.16); border-radius:13px;
+  background:rgba(3,17,17,.62); min-height:102px;
+}
+.recovery-label { color:var(--muted); font:600 .65rem 'Share Tech Mono',monospace; letter-spacing:1.5px; text-transform:uppercase; }
+.recovery-value { color:var(--ink); font:700 1.25rem 'Orbitron',monospace; margin:8px 0 5px; }
+.recovery-state { font:600 .68rem 'Share Tech Mono',monospace; letter-spacing:1px; }
+.state-good { color:var(--match); }.state-watch { color:var(--ball); }.state-alert { color:#ff7b72; }.state-missing { color:var(--muted); }
+.recovery-overall { padding:12px 15px; border-left:3px solid var(--ball); background:rgba(223,255,67,.05); color:var(--ink); border-radius:0 10px 10px 0; }
+
 @media (max-width:800px) {
   .block-container { padding:1rem .8rem 3rem; }
   .hud-header { min-height:220px; padding:24px 20px; align-items:flex-end; }
@@ -410,6 +422,7 @@ hr { border-color:rgba(70,230,210,.12)!important; margin:2rem 0!important; }
   [data-testid="stHorizontalBlock"] { gap:.65rem; }
   [data-testid="column"] { min-width:calc(50% - .4rem)!important; flex:1 1 calc(50% - .4rem)!important; }
   [data-testid="stMetric"] { min-height:108px; }
+  .recovery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 </style>
 """
@@ -1186,16 +1199,21 @@ def ultimo_texto(df, col):
 def build_context_summary(garmin, manual):
     lines = [
         f"Últimos {DIAS_CONTEXTO_IA} días de métricas (Garmin):",
-        "fecha | peso_kg | pasos | horas_sueno | fc_reposo",
+        "fecha | peso_kg | pasos | horas_sueno | sleep_need_min | sleep_score | "
+        "hrv_ms | fc_reposo | bb_recharge | respiracion | spo2_sueno | skin_temp_c",
     ]
     recientes = garmin.sort_values("fecha").tail(DIAS_CONTEXTO_IA)
     for _, row in recientes.iterrows():
         lines.append(
             f"{row['fecha'].date()} | "
-            f"{row['peso_kg'] if pd.notnull(row['peso_kg']) else '-'} | "
-            f"{int(row['pasos']) if pd.notnull(row['pasos']) else '-'} | "
-            f"{row['horas_sueno'] if pd.notnull(row['horas_sueno']) else '-'} | "
-            f"{int(row['fc_reposo']) if pd.notnull(row['fc_reposo']) else '-'}"
+            + " | ".join(
+                str(row.get(col)) if pd.notnull(row.get(col)) else "-"
+                for col in (
+                    "peso_kg", "pasos", "horas_sueno", "sleep_need_min", "sleep_score",
+                    "hrv_ms", "fc_reposo", "body_battery_recharge",
+                    "respiracion_nocturna", "spo2_promedio_sueno", "skin_temp_c",
+                )
+            )
         )
 
     lines.append("")
@@ -1236,6 +1254,48 @@ def preguntar_ia(garmin, manual, historial_mensajes):
         output_config={"effort": "low"},
     )
     return next((b.text for b in response.content if b.type == "text"), "")
+
+
+def _fmt_num(value, unit="", decimals=1, signed=False):
+    if value is None or pd.isna(value):
+        return "—"
+    prefix = "+" if signed and float(value) > 0 else ""
+    return f"{prefix}{float(value):.{decimals}f}{(' ' + unit) if unit else ''}"
+
+
+def _fmt_minutes(value, signed=False):
+    if value is None or pd.isna(value):
+        return "—"
+    value = int(round(float(value)))
+    sign = "+" if signed and value > 0 else ("−" if value < 0 else "")
+    value = abs(value)
+    h, m = divmod(value, 60)
+    return f"{sign}{h}h {m:02d}m" if h else f"{sign}{m} min"
+
+
+def _state_css(state):
+    state = str(state or "").lower()
+    if "insufficient" in state:
+        return "state-missing"
+    if "significant" in state or "déficit" in state:
+        return "state-alert"
+    if "watch" in state or "altered" in state:
+        return "state-watch"
+    return "state-good"
+
+
+def _safe_state(value):
+    return "Insufficient Data" if value is None or pd.isna(value) or not str(value).strip() else str(value)
+
+
+def _recovery_card(label, value, state):
+    return (
+        '<div class="recovery-item">'
+        f'<div class="recovery-label">{label}</div>'
+        f'<div class="recovery-value">{value}</div>'
+        f'<div class="recovery-state {_state_css(state)}">{state}</div>'
+        '</div>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1422,6 +1482,227 @@ with b2:
 if "last_sync_log" in st.session_state:
     with st.expander("Detalle de la última sincronización"):
         st.code(st.session_state["last_sync_log"] or "(sin salida)")
+
+# --- Analítica personal: usa NaN para faltantes, nunca ceros artificiales ---
+baseline_df = ha.baseline_summary(garmin)
+baseline_by_metric = baseline_df.set_index("metric") if not baseline_df.empty else pd.DataFrame()
+sleep_debt = ha.sleep_debt_summary(garmin)
+resp_stability = ha.respiratory_stability(garmin)
+
+def _baseline_row(metric):
+    if isinstance(baseline_by_metric, pd.DataFrame) and metric in baseline_by_metric.index:
+        return baseline_by_metric.loc[metric]
+    return pd.Series(dtype=object)
+
+
+with st.container(border=True):
+    st.subheader("Morning Recovery")
+    st.caption(
+        "Lectura transparente de esta mañana frente a tu baseline personal. "
+        "No es diagnóstico médico ni un score propietario."
+    )
+    recovery_cards = []
+    recovery_states = []
+
+    for metric, label, unit, decimals in (
+        ("hrv_ms", "HRV vs baseline", "ms", 0),
+        ("fc_reposo", "FC reposo vs baseline", "lpm", 0),
+    ):
+        row = _baseline_row(metric)
+        state = _safe_state(row.get("interpretation"))
+        value = _fmt_num(row.get("difference_pct"), "%", 1, signed=True)
+        recovery_cards.append(_recovery_card(label, value, state))
+        recovery_states.append(state)
+
+    sleep_row = _baseline_row("horas_sueno")
+    sleep_state = _safe_state(sleep_row.get("interpretation"))
+    recovery_cards.append(_recovery_card("Sueño total", _fmt_num(sleep_row.get("current"), "h", 2), sleep_state))
+    recovery_states.append(sleep_state)
+
+    debt_state = sleep_debt.get("classification", "Insufficient Data")
+    recovery_cards.append(_recovery_card("Sleep Debt", _fmt_minutes(sleep_debt.get("daily"), signed=True), debt_state))
+    recovery_states.append(debt_state)
+
+    recharge_row = _baseline_row("body_battery_recharge")
+    recharge_state = _safe_state(recharge_row.get("interpretation"))
+    recovery_cards.append(_recovery_card(
+        "Night Recharge", _fmt_num(recharge_row.get("current"), "pts", 0, signed=True), recharge_state
+    ))
+    recovery_states.append(recharge_state)
+
+    temp_row = _baseline_row("skin_temp_c")
+    temp_state = _safe_state(temp_row.get("interpretation"))
+    recovery_cards.append(_recovery_card(
+        "Skin Temp deviation", _fmt_num(temp_row.get("difference"), "°C", 2, signed=True), temp_state
+    ))
+    recovery_states.append(temp_state)
+
+    resp_state = resp_stability.get("status", "Insufficient Data")
+    resp_row = _baseline_row("respiracion_nocturna")
+    recovery_cards.append(_recovery_card(
+        "Respiratory Stability", _fmt_num(resp_row.get("current"), "rpm", 1), resp_state
+    ))
+    recovery_states.append(resp_state)
+
+    readiness_row = _baseline_row("training_readiness")
+    readiness_state = _safe_state(readiness_row.get("interpretation"))
+    recovery_cards.append(_recovery_card(
+        "Training Readiness", _fmt_num(readiness_row.get("current"), "/100", 0), readiness_state
+    ))
+    recovery_states.append(readiness_state)
+
+    st.markdown('<div class="recovery-grid">' + "".join(recovery_cards) + "</div>", unsafe_allow_html=True)
+    usable_states = [s for s in recovery_states if "insufficient" not in str(s).lower()]
+    normal_count = sum(
+        not any(word in str(s).lower() for word in ("watch", "significant", "altered", "déficit"))
+        for s in usable_states
+    )
+    st.markdown(
+        f'<div class="recovery-overall"><b>Overall:</b> {normal_count}/{len(usable_states)} '
+        'indicadores disponibles dentro de rango o favorables.</div>',
+        unsafe_allow_html=True,
+    )
+
+with st.container(border=True):
+    st.subheader("Personal Baseline Deviations")
+    st.caption(
+        "Baseline 28D = media de los 28 días anteriores al dato actual. "
+        "Z-score y percentil aparecen al alcanzar al menos 14 observaciones."
+    )
+    if baseline_df.empty:
+        st.info("Insufficient Data")
+    else:
+        baseline_view = baseline_df.copy()
+        baseline_view["current_date"] = pd.to_datetime(baseline_view.get("current_date"), errors="coerce").dt.date
+        cols = [
+            "label", "current", "avg_7d", "avg_14d", "baseline_28d",
+            "difference", "difference_pct", "zscore", "historical_percentile",
+            "interpretation", "baseline_n",
+        ]
+        for col in cols:
+            if col not in baseline_view:
+                baseline_view[col] = pd.NA
+        st.dataframe(
+            baseline_view[cols].rename(columns={
+                "label": "Métrica", "current": "Actual", "avg_7d": "Prom. 7D",
+                "avg_14d": "Prom. 14D", "baseline_28d": "Baseline 28D",
+                "difference": "Dif. absoluta", "difference_pct": "Dif. %",
+                "zscore": "Z-score", "historical_percentile": "Percentil histórico",
+                "interpretation": "Lectura", "baseline_n": "N baseline",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+
+with st.container(border=True):
+    st.subheader("Night Recovery & Sleep Consistency")
+    recharge = _baseline_row("body_battery_recharge")
+    latest_garmin = garmin.sort_values("fecha").iloc[-1] if not garmin.empty else pd.Series(dtype=object)
+    nr1, nr2, nr3, nr4 = st.columns(4)
+    with nr1:
+        st.metric("Night Recharge", _fmt_num(recharge.get("current"), "pts", 0, signed=True))
+        st.caption(
+            f"Bedtime {_fmt_num(latest_garmin.get('body_battery_bedtime'), '', 0)} → "
+            f"Wake {_fmt_num(latest_garmin.get('body_battery_wake'), '', 0)}"
+        )
+    with nr2:
+        st.metric("Recharge promedio 7D", _fmt_num(recharge.get("avg_7d"), "pts", 1, signed=True))
+        st.caption(f"Vs 28D: {_fmt_num(recharge.get('difference_pct'), '%', 1, signed=True)}")
+    with nr3:
+        st.metric("Daily Drain", _fmt_num(latest_garmin.get("body_battery_daily_drain"), "pts", 0))
+        st.caption("Desgaste reportado por Garmin durante el día")
+    with nr4:
+        st.metric("Sleep Debt hoy", _fmt_minutes(sleep_debt.get("daily"), signed=True))
+        st.caption(sleep_debt.get("classification", "Insufficient Data"))
+
+    d1, d2, d3 = st.columns(3)
+    for container, days in zip((d1, d2, d3), (7, 14, 28)):
+        consistency = ha.sleep_consistency(garmin, days=days)
+        with container:
+            score = consistency.get("score")
+            st.metric(f"Sleep Consistency {days}D", _fmt_num(score, "/100", 0))
+            if consistency.get("status") == "Available":
+                st.caption(
+                    f"Dormir ±{consistency['bedtime_deviation_min']:.0f} min · "
+                    f"Despertar ±{consistency['wake_deviation_min']:.0f} min · "
+                    f"Duración ±{consistency['duration_deviation_min']:.0f} min"
+                )
+            else:
+                st.caption("Insufficient Data")
+
+    st.caption(
+        "Fórmula consistencia: 100 × exp(−D/90), donde D es el promedio de la "
+        "desviación circular de dormir/despertar y la desviación de duración, en minutos."
+    )
+    if sleep_debt.get("status") == "Available":
+        st.caption(
+            "Sleep Debt acumulado — "
+            f"7D: {_fmt_minutes(sleep_debt.get('total_7d'), signed=True)} · "
+            f"14D: {_fmt_minutes(sleep_debt.get('total_14d'), signed=True)} · "
+            f"28D: {_fmt_minutes(sleep_debt.get('total_28d'), signed=True)}"
+        )
+
+with st.container(border=True):
+    st.subheader("Temperature & Respiratory Stability")
+    temp_available = (
+        "skin_temp_available" in garmin and garmin["skin_temp_available"].fillna(0).astype(bool).any()
+    )
+    temp_values = garmin["skin_temp_c"].dropna() if "skin_temp_c" in garmin else pd.Series(dtype=float)
+    if temp_available and temp_values.empty:
+        st.info(
+            "Garmin confirma que tu dispositivo registra temperatura de piel, pero la versión "
+            "actual de la fuente no entrega el valor numérico. El baseline 28D y tendencias "
+            "7/14/28D ya están preparados y se activarán cuando el endpoint/CIRQA lo exponga."
+        )
+    elif temp_values.empty:
+        st.info("Skin Temperature: Insufficient Data. Se requiere el valor nocturno de Garmin/CIRQA.")
+    else:
+        trow = _baseline_row("skin_temp_c")
+        tc1, tc2, tc3, tc4 = st.columns(4)
+        tc1.metric("Skin Temp", _fmt_num(trow.get("current"), "°C", 2))
+        tc2.metric("Baseline 28D", _fmt_num(trow.get("baseline_28d"), "°C", 2))
+        tc3.metric("Deviation", _fmt_num(trow.get("difference"), "°C", 2, signed=True))
+        tc4.metric("Tendencia 7D", _fmt_num(trow.get("avg_7d"), "°C", 2))
+
+    rr1, rr2, rr3, rr4 = st.columns(4)
+    rr1.metric("Respiratory Stability", resp_stability.get("status", "Insufficient Data"))
+    rr2.metric("Respiración media", _fmt_num(latest_garmin.get("respiracion_nocturna"), "rpm", 1))
+    rr3.metric("SpO₂ media sueño", _fmt_num(latest_garmin.get("spo2_promedio_sueno"), "%", 1))
+    rr4.metric("SpO₂ mínima sueño", _fmt_num(latest_garmin.get("spo2_minimo_sueno"), "%", 1))
+    st.caption("Comparación contra baseline personal; no constituye diagnóstico médico.")
+
+with st.container(border=True):
+    st.subheader("Baseline Anomalies & Correlation Insights")
+    anomalias = baseline_df[baseline_df.get("anomaly", pd.Series(dtype=str)) != "Normal"].copy()
+    if anomalias.empty:
+        st.success("No hay desviaciones estadísticas destacables con los datos disponibles.")
+    else:
+        st.dataframe(
+            anomalias[["label", "current", "baseline_28d", "zscore", "historical_percentile", "anomaly"]]
+            .rename(columns={
+                "label": "Métrica", "current": "Actual", "baseline_28d": "Baseline 28D",
+                "zscore": "Z-score", "historical_percentile": "Percentil", "anomaly": "Clasificación",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+    correlations = ha.correlation_insights(garmin)
+    available_corr = correlations[correlations["status"] == "Available"] if not correlations.empty else pd.DataFrame()
+    if available_corr.empty:
+        st.info("Correlaciones: Insufficient Data (se requieren al menos 10 pares válidos).")
+    else:
+        st.dataframe(
+            available_corr[["relationship", "lag_days", "pearson_r", "strength", "direction", "n"]]
+            .rename(columns={
+                "relationship": "Relación", "lag_days": "Lag (días)", "pearson_r": "Pearson r",
+                "strength": "Fuerza", "direction": "Dirección", "n": "N pares",
+            }), use_container_width=True, hide_index=True,
+        )
+        st.caption("Asociaciones estadísticas descriptivas; correlación no implica causalidad.")
+
+    with st.expander("Data Quality / cobertura"):
+        st.dataframe(ha.data_quality(garmin), use_container_width=True, hide_index=True)
+        if "source_device_id" in garmin and garmin["source_device_id"].notna().any():
+            devices = ", ".join(sorted(garmin["source_device_id"].dropna().astype(str).unique()))
+            st.caption(f"Dispositivo(s) de origen identificado(s): {devices}")
 
 st.divider()
 
