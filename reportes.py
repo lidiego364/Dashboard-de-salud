@@ -16,7 +16,40 @@ import io
 
 import pandas as pd
 
+import health_analytics as ha
+
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Extiende el config de health_analytics con las métricas que ese módulo no
+# cubre pero que sí interesan en los reportes (el peso se maneja aparte, con
+# su propio filtro de Kalman, en _resumen_meta). Así los reportes reusan el
+# mismo motor de baseline/zscore/percentil que ya está probado en el dashboard
+# en vez de duplicar el cálculo con una lógica distinta.
+METRIC_CONFIG_REPORTES = {
+    **ha.METRIC_CONFIG,
+    "calorias_activas": ha.MetricConfig("Calorías activas", "kcal", "neutral", 0),
+    "calorias_reposo": ha.MetricConfig("Calorías reposo", "kcal", "neutral", 0),
+    "carga_entrenamiento": ha.MetricConfig("Carga entrenamiento", "pts", "neutral", 0),
+    "pasos": ha.MetricConfig("Pasos", "pasos", "higher", 0),
+    "sleep_need_min": ha.MetricConfig("Sleep Need", "min", "neutral", 0),
+    "body_battery_max": ha.MetricConfig("Body Battery máx", "pts", "higher", 0),
+}
+
+# Columnas de detalle de entrenamiento (actividades_detalle) para las hojas
+# de actividades de los reportes.
+COLS_ACTIVIDADES = [
+    ("fecha", "fecha"), ("nombre", "nombre"), ("tipo_actividad", "tipo"),
+    ("duracion_min", "duración (min)"), ("calorias", "calorías"),
+    ("fc_promedio", "FC promedio"), ("fc_maxima", "FC máxima"),
+    ("fc_zona1_min", "FC zona1 (min)"), ("fc_zona2_min", "FC zona2 (min)"),
+    ("fc_zona3_min", "FC zona3 (min)"), ("fc_zona4_min", "FC zona4 (min)"),
+    ("fc_zona5_min", "FC zona5 (min)"),
+    ("distancia_km", "distancia (km)"), ("ritmo_min_km", "ritmo (min/km)"),
+    ("carga_entrenamiento", "carga entrenamiento"),
+    ("efecto_aerobico", "efecto aeróbico"), ("efecto_anaerobico", "efecto anaeróbico"),
+    ("series_totales", "series"), ("repeticiones_totales", "repeticiones"),
+    ("ejercicios_detectados", "ejercicios detectados"),
+]
 
 # Métricas clave: (etiqueta legible, columna en el DataFrame). "peso" es la
 # columna combinada (manual con prioridad sobre Garmin).
@@ -171,8 +204,12 @@ def _cambio_pct(valor, base):
 
 
 def _eventos(manual, fecha_ref, dias):
-    """Dosis y registros de peso de tracker_manual en los últimos `dias` días."""
-    columnas = ["fecha", "tipo", "dosis_mg", "zona_inyeccion", "peso_manual", "notas"]
+    """Dosis, creatina y registros de peso de tracker_manual en los últimos
+    `dias` días."""
+    columnas = [
+        "fecha", "tipo", "dosis_mg", "zona_inyeccion", "creatina_g",
+        "peso_manual", "notas",
+    ]
     if manual is None or manual.empty:
         return pd.DataFrame([{"estado": "Sin eventos en el periodo"}])
     inicio = pd.Timestamp(fecha_ref) - pd.Timedelta(days=dias - 1)
@@ -186,12 +223,15 @@ def _eventos(manual, fecha_ref, dias):
             tipos.append("dosis")
         if pd.notnull(r.get("peso_manual")):
             tipos.append("peso")
+        if pd.notnull(r.get("creatina_g")):
+            tipos.append("creatina")
         filas.append(
             {
                 "fecha": _fecha_iso(r["fecha"]),
                 "tipo": "+".join(tipos) if tipos else "otro",
                 "dosis_mg": _num(r.get("dosis_mg")),
                 "zona_inyeccion": r.get("zona_inyeccion"),
+                "creatina_g": _num(r.get("creatina_g")),
                 "peso_manual": _num(r.get("peso_manual")),
                 "notas": r.get("notas"),
             }
@@ -201,79 +241,194 @@ def _eventos(manual, fecha_ref, dias):
     return pd.DataFrame(filas, columns=columnas)
 
 
+def _resumen_meta(progreso_meta):
+    """Progreso hacia la meta de peso (calculado en dashboard.py con el
+    filtro de Kalman) como tabla campo/valor, para que quede en el reporte
+    en vez de solo visible en la UI."""
+    if not progreso_meta:
+        return pd.DataFrame([{"estado": "Sin meta configurada o datos insuficientes"}])
+    fecha_estimada = progreso_meta.get("fecha_estimada")
+    filas = [
+        {"campo": "Peso actual (kg)", "valor": _num(progreso_meta.get("peso_actual"))},
+        {"campo": "Peso objetivo (kg)", "valor": _num(progreso_meta.get("peso_objetivo"))},
+        {"campo": "Peso inicial (kg)", "valor": _num(progreso_meta.get("peso_inicial"))},
+        {"campo": "Diferencia a la meta (kg)", "valor": _num(progreso_meta.get("diferencia"))},
+        {"campo": "Ritmo real (kg/semana, Kalman)", "valor": _num(progreso_meta.get("ritmo_real_semanal"), 2)},
+        {"campo": "Ritmo objetivo (kg/semana)", "valor": _num(progreso_meta.get("ritmo_objetivo_signed"), 2)},
+        {"campo": "Estado", "valor": progreso_meta.get("estado")},
+        {"campo": "Fecha estimada de meta", "valor": _fecha_iso(fecha_estimada) if fecha_estimada is not None else None},
+        {"campo": "Semanas restantes (estimado)", "valor": _num(progreso_meta.get("semanas_restantes"), 1)},
+    ]
+    return pd.DataFrame(filas, columns=["campo", "valor"])
+
+
+def _detalle_actividades(detalle, fecha_ref, dias):
+    """Detalle por entrenamiento (nombre, FC, zonas, series/reps, etc.) en
+    los últimos `dias` días, en vez de solo el agregado de carga."""
+    if detalle is None or detalle.empty:
+        return pd.DataFrame([{"estado": "Sin actividades registradas"}])
+    inicio = pd.Timestamp(fecha_ref) - pd.Timedelta(days=dias - 1)
+    win = detalle[
+        (detalle["fecha"] >= inicio) & (detalle["fecha"] <= pd.Timestamp(fecha_ref))
+    ].sort_values("fecha")
+    if win.empty:
+        return pd.DataFrame([{"estado": "Sin actividades en el periodo"}])
+    return _tabla_ancha(win, COLS_ACTIVIDADES)
+
+
+def _sueno_recuperacion(garmin, dias_list):
+    """Sleep debt + sleep consistency (varias ventanas) + estabilidad
+    respiratoria, reusando las mismas fórmulas de health_analytics que se
+    muestran en el dashboard."""
+    filas = []
+    debt = ha.sleep_debt_summary(garmin)
+    if debt.get("status") == "Available":
+        filas.append({"campo": "Sleep debt hoy (min)", "valor": _num(debt.get("daily"), 0)})
+        filas.append({"campo": "Clasificación sleep debt", "valor": debt.get("classification")})
+        for d in (7, 14, 28):
+            filas.append({
+                "campo": f"Sleep debt acumulado {d}D (min)",
+                "valor": _num(debt.get(f"total_{d}d"), 0),
+            })
+    else:
+        filas.append({"campo": "Sleep debt", "valor": "Insufficient Data"})
+
+    for dias in dias_list:
+        cons = ha.sleep_consistency(garmin, days=dias)
+        if cons.get("status") == "Available":
+            filas.append({
+                "campo": f"Sleep consistency {dias}D (score /100)",
+                "valor": _num(cons.get("score"), 0),
+            })
+            filas.append({
+                "campo": f"Sleep consistency {dias}D — desviación dormir/despertar/duración (min)",
+                "valor": (
+                    f"{_num(cons.get('bedtime_deviation_min'), 0)} / "
+                    f"{_num(cons.get('wake_deviation_min'), 0)} / "
+                    f"{_num(cons.get('duration_deviation_min'), 0)}"
+                ),
+            })
+        else:
+            filas.append({"campo": f"Sleep consistency {dias}D", "valor": "Insufficient Data"})
+
+    resp = ha.respiratory_stability(garmin)
+    filas.append({"campo": "Respiratory stability", "valor": resp.get("status")})
+
+    return pd.DataFrame(filas, columns=["campo", "valor"])
+
+
+def _resumen_ejecutivo(progreso_meta, baseline_df, eventos_df, sleep_debt, periodo_label):
+    """Bullets en texto plano con lo más importante, para que una IA (o vos)
+    no tenga que cruzar 8 hojas para entender el panorama general."""
+    lineas = []
+    if progreso_meta:
+        lineas.append(
+            f"Peso: {_num(progreso_meta.get('peso_actual'), 1)} kg -> objetivo "
+            f"{_num(progreso_meta.get('peso_objetivo'), 1)} kg. Ritmo real "
+            f"{_num(progreso_meta.get('ritmo_real_semanal'), 2)} kg/sem vs objetivo "
+            f"{_num(progreso_meta.get('ritmo_objetivo_signed'), 2)} kg/sem. "
+            f"Estado: {progreso_meta.get('estado')}."
+        )
+        if progreso_meta.get("fecha_estimada") is not None:
+            lineas.append(f"Fecha estimada de meta: {_fecha_iso(progreso_meta['fecha_estimada'])}.")
+    else:
+        lineas.append("Meta de peso: no configurada o datos insuficientes.")
+
+    if baseline_df is not None and not baseline_df.empty and "anomaly" in baseline_df:
+        anom = baseline_df[~baseline_df["anomaly"].isin(["Normal", "Insufficient Data"])]
+        if anom.empty:
+            lineas.append(f"Sin anomalías destacables {periodo_label}.")
+        else:
+            nombres = ", ".join(anom["label"].astype(str).tolist())
+            lineas.append(f"{len(anom)} métrica(s) fuera de rango personal {periodo_label}: {nombres}.")
+
+    if sleep_debt and sleep_debt.get("status") == "Available":
+        lineas.append(
+            f"Sleep debt hoy: {_num(sleep_debt.get('daily'), 0)} min "
+            f"({sleep_debt.get('classification')})."
+        )
+
+    if eventos_df is not None and not eventos_df.empty and "fecha" in eventos_df:
+        ultima = eventos_df.iloc[-1]
+        lineas.append(
+            f"Último evento manual registrado: {ultima.get('fecha')} "
+            f"({ultima.get('tipo', 'evento')})."
+        )
+
+    if not lineas:
+        lineas.append("Sin suficiente información para generar un resumen.")
+
+    return pd.DataFrame({"resumen": lineas})
+
+
 # ---------------------------------------------------------------------------
 # Reporte diario
 # ---------------------------------------------------------------------------
 
-def build_daily_report(garmin, manual):
-    dm = _daily_metrics(garmin, manual)
-    last30 = dm.tail(30).reset_index(drop=True)
+def _baseline_hoy(garmin):
+    """Baseline/zscore/percentil por métrica (motor de health_analytics,
+    el mismo que usa el dashboard), con encabezados en español para Excel."""
+    resumen = ha.baseline_summary(garmin, config=METRIC_CONFIG_REPORTES)
+    if resumen.empty:
+        vacio = pd.DataFrame([{"estado": "Sin datos"}])
+        return resumen, vacio, vacio
+    cols = [
+        "label", "current", "avg_7d", "avg_14d", "baseline_28d",
+        "difference", "difference_pct", "zscore", "historical_percentile",
+        "anomaly", "interpretation", "baseline_n",
+    ]
+    for col in cols:
+        if col not in resumen:
+            resumen[col] = pd.NA
+    for col in ("current", "avg_7d", "avg_14d", "baseline_28d", "difference", "zscore"):
+        resumen[col] = resumen[col].map(lambda v: _num(v, 2))
+    resumen["difference_pct"] = resumen["difference_pct"].map(lambda v: _num(v, 1))
+    resumen["historical_percentile"] = resumen["historical_percentile"].map(lambda v: _num(v, 0))
+    resumen_view = resumen[cols].rename(columns={
+        "label": "métrica", "current": "valor_actual", "avg_7d": "promedio_7d",
+        "avg_14d": "promedio_14d", "baseline_28d": "baseline_28d",
+        "difference": "diferencia", "difference_pct": "diferencia_%",
+        "zscore": "z_score", "historical_percentile": "percentil_historico",
+        "anomaly": "clasificación", "interpretation": "lectura",
+        "baseline_n": "n_baseline",
+    })
+    anomalias = resumen[~resumen["anomaly"].isin(["Normal", "Insufficient Data"])]
+    if anomalias.empty:
+        anomalias_view = pd.DataFrame([{"estado": "Sin anomalías"}])
+    else:
+        anomalias_view = anomalias[cols].rename(columns={
+            "label": "métrica", "current": "valor_actual", "avg_7d": "promedio_7d",
+            "avg_14d": "promedio_14d", "baseline_28d": "baseline_28d",
+            "difference": "diferencia", "difference_pct": "diferencia_%",
+            "zscore": "z_score", "historical_percentile": "percentil_historico",
+            "anomaly": "clasificación", "interpretation": "lectura",
+            "baseline_n": "n_baseline",
+        })
+    return resumen, resumen_view, anomalias_view
+
+
+def build_daily_report(garmin, manual, detalle=None, progreso_meta=None):
     fecha_ref = fecha_referencia(garmin)
 
-    hoy = last30[last30["fecha"] == last30["fecha"].max()]
-    ult7 = last30.tail(7)
-    baseline = last30.head(14)  # los 14 días más antiguos del rango de 30
-
-    resumen, anomalias = [], []
-    for etiqueta, col in METRICAS_CLAVE:
-        valor_hoy = hoy[col].iloc[0] if (not hoy.empty and col in hoy) else None
-        prom7 = ult7[col].mean() if col in ult7 else None
-        base_mean = baseline[col].mean() if col in baseline else None
-        base_std = baseline[col].std() if col in baseline else None
-        cambio = _cambio_pct(valor_hoy, base_mean)
-
-        resumen.append(
-            {
-                "metrica": etiqueta,
-                "valor_hoy": _num(valor_hoy),
-                "promedio_7d": _num(prom7),
-                "baseline_14d": _num(base_mean),
-                "cambio_%_vs_baseline": _num(cambio, 1),
-            }
-        )
-
-        if (
-            valor_hoy is not None
-            and pd.notnull(valor_hoy)
-            and base_std is not None
-            and pd.notnull(base_std)
-            and base_std > 0
-        ):
-            z = (float(valor_hoy) - float(base_mean)) / float(base_std)
-            if abs(z) > 1.5:
-                anomalias.append(
-                    {
-                        "metrica": etiqueta,
-                        "valor_hoy": _num(valor_hoy),
-                        "baseline_media": _num(base_mean),
-                        "baseline_desv_std": _num(base_std),
-                        "desviaciones_std": _num(z, 2),
-                        "direccion": "por encima" if z > 0 else "por debajo",
-                    }
-                )
-
-    resumen_df = pd.DataFrame(
-        resumen,
-        columns=["metrica", "valor_hoy", "promedio_7d", "baseline_14d", "cambio_%_vs_baseline"],
-    )
-    if anomalias:
-        anomalias_df = pd.DataFrame(
-            anomalias,
-            columns=[
-                "metrica", "valor_hoy", "baseline_media",
-                "baseline_desv_std", "desviaciones_std", "direccion",
-            ],
-        )
-    else:
-        anomalias_df = pd.DataFrame([{"estado": "Sin anomalías"}])
-
+    baseline_raw, resumen_df, anomalias_df = _baseline_hoy(garmin)
     eventos_df = _eventos(manual, fecha_ref, dias=7)
+    meta_df = _resumen_meta(progreso_meta)
+    sueno_df = _sueno_recuperacion(garmin, dias_list=[7])
+    actividades_df = _detalle_actividades(detalle, fecha_ref, dias=7)
+    sleep_debt = ha.sleep_debt_summary(garmin)
+    resumen_ejecutivo_df = _resumen_ejecutivo(
+        progreso_meta, baseline_raw, eventos_df, sleep_debt, "hoy"
+    )
 
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        resumen_ejecutivo_df.to_excel(w, sheet_name="RESUMEN_EJECUTIVO", index=False)
         resumen_df.to_excel(w, sheet_name="RESUMEN_HOY", index=False)
         anomalias_df.to_excel(w, sheet_name="ANOMALIAS_HOY", index=False)
+        meta_df.to_excel(w, sheet_name="META_PESO", index=False)
+        sueno_df.to_excel(w, sheet_name="SUENO_RECUPERACION", index=False)
         eventos_df.to_excel(w, sheet_name="EVENTOS_RECIENTES", index=False)
+        actividades_df.to_excel(w, sheet_name="ACTIVIDADES_RECIENTES", index=False)
     buf.seek(0)
     return buf, fecha_ref
 
@@ -435,7 +590,7 @@ def _carga_entrenamiento(last30):
     )
 
 
-def build_weekly_report(garmin, manual):
+def build_weekly_report(garmin, manual, detalle=None, progreso_meta=None):
     dm = _daily_metrics(garmin, manual)
     last30 = dm.tail(30).reset_index(drop=True)
     fecha_ref = fecha_referencia(garmin)
@@ -446,14 +601,26 @@ def build_weekly_report(garmin, manual):
     ventana = _ventana_dosis(dm, manual, fecha_ref)
     eventos = _eventos(manual, fecha_ref, dias=30)
     carga = _carga_entrenamiento(last30)
+    meta_df = _resumen_meta(progreso_meta)
+    sueno_df = _sueno_recuperacion(garmin, dias_list=[7, 14, 28])
+    actividades_df = _detalle_actividades(detalle, fecha_ref, dias=30)
+    baseline_raw = ha.baseline_summary(garmin, config=METRIC_CONFIG_REPORTES)
+    sleep_debt = ha.sleep_debt_summary(garmin)
+    resumen_ejecutivo_df = _resumen_ejecutivo(
+        progreso_meta, baseline_raw, eventos, sleep_debt, "esta semana"
+    )
 
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        resumen_ejecutivo_df.to_excel(w, sheet_name="RESUMEN_EJECUTIVO", index=False)
         datos_diarios.to_excel(w, sheet_name="DATOS_DIARIOS", index=False)
         comparativa.to_excel(w, sheet_name="COMPARATIVA_SEMANAL", index=False)
         moviles.to_excel(w, sheet_name="PROMEDIOS_MOVILES", index=False)
+        meta_df.to_excel(w, sheet_name="META_PESO", index=False)
+        sueno_df.to_excel(w, sheet_name="SUENO_RECUPERACION", index=False)
         ventana.to_excel(w, sheet_name="VENTANA_DOSIS", index=False)
         eventos.to_excel(w, sheet_name="EVENTOS", index=False)
+        actividades_df.to_excel(w, sheet_name="ACTIVIDADES_DETALLE", index=False)
         carga.to_excel(w, sheet_name="CARGA_ENTRENAMIENTO", index=False)
     buf.seek(0)
     return buf

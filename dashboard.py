@@ -329,9 +329,26 @@ h2::after,h3::after {
   width:84px; height:84px; right:26%; bottom:24%; border:0; border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#f5ff9a 0%,var(--ball) 42%,#8ca600 100%);
   box-shadow:0 0 38px rgba(223,255,67,.44); opacity:.88;
+  animation:ball-rally 7s ease-in-out infinite;
+}
+@keyframes ball-rally {
+  0%,100% { transform:translate(0,0) scale(1); }
+  22%     { transform:translate(-22px,-16px) scale(.92); }
+  46%     { transform:translate(-40px,6px) scale(1.05); }
+  70%     { transform:translate(-16px,-22px) scale(.95); }
+  86%     { transform:translate(-6px,-4px) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-header::after { animation:none; }
 }
 .hud-header-left,.hud-header-right { position:relative; z-index:2; }
 .hud-header-left { max-width:620px; }
+.hud-header-right { margin-left:auto; }
+.hud-net {
+  align-self:stretch; width:2px; min-height:64px; margin:0 30px;
+  background:repeating-linear-gradient(180deg,rgba(70,230,210,.6) 0 6px,transparent 6px 13px);
+  opacity:.5; position:relative; z-index:2;
+}
 .hud-title {
   font-size:clamp(1.75rem,3vw,3.2rem); line-height:1.02; letter-spacing:1px;
   color:var(--ink); text-shadow:none;
@@ -400,6 +417,35 @@ hr { border-color:rgba(70,230,210,.12)!important; margin:2rem 0!important; }
 }
 .court-chip { padding:7px 11px; border:1px solid rgba(70,230,210,.18); border-radius:999px; background:rgba(4,23,22,.65); }
 .court-chip b { color:var(--ball); font-weight:600; }
+.chip-dot {
+  display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%;
+  background:var(--ball); box-shadow:0 0 7px rgba(223,255,67,.75); vertical-align:1px;
+}
+
+/* Pista de progreso hacia la meta, estilo cancha */
+.match-track-wrap { margin:4px 0 20px; }
+.match-track-label {
+  display:flex; justify-content:space-between; margin-bottom:9px;
+  color:var(--muted); font:600 .68rem 'Share Tech Mono',monospace; letter-spacing:1.5px;
+}
+.match-track {
+  position:relative; height:10px; border-radius:999px; overflow:visible;
+  border:1px solid rgba(70,230,210,.24);
+  background:repeating-linear-gradient(90deg,rgba(70,230,210,.16) 0 8px,transparent 8px 17px),rgba(3,17,17,.7);
+}
+.match-track-fill {
+  position:absolute; top:0; left:0; height:100%; border-radius:999px;
+  background:linear-gradient(90deg,rgba(70,230,210,.18),var(--court));
+  box-shadow:0 0 16px rgba(70,230,210,.4);
+  transition:width .5s ease;
+}
+.match-ball {
+  position:absolute; top:50%; width:20px; height:20px; margin-left:-10px;
+  transform:translateY(-50%); border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#f5ff9a 0%,var(--ball) 42%,#8ca600 100%);
+  box-shadow:0 0 16px rgba(223,255,67,.55),0 2px 8px rgba(0,0,0,.45);
+  transition:left .5s ease;
+}
 
 .recovery-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:8px 0 14px; }
 .recovery-item {
@@ -449,11 +495,12 @@ def base_layout(fig, title, y_title):
             font=dict(color="#cfe9ff", family="Share Tech Mono, monospace"),
         ),
         xaxis=dict(
-            showgrid=False, linecolor=AXIS_LINE, zeroline=False,
+            showgrid=True, gridcolor=GRID, griddash="dot",
+            linecolor=AXIS_LINE, zeroline=False,
             tickfont=dict(color=TXT),
         ),
         yaxis=dict(
-            title=y_title, gridcolor=GRID, linecolor=AXIS_LINE,
+            title=y_title, gridcolor=GRID, griddash="dot", linecolor=AXIS_LINE,
             zerolinecolor=AXIS_LINE, tickfont=dict(color=TXT),
         ),
         legend=dict(
@@ -1137,14 +1184,14 @@ def build_excel_export(garmin, manual):
 # Wrappers cacheados: los .xlsx solo se regeneran cuando cambian los datos
 # (o cada 30 s), no en cada interacción con la página.
 @st.cache_data(ttl=30)
-def reporte_diario_bytes(garmin, manual):
-    buf, _fecha = reportes.build_daily_report(garmin, manual)
+def reporte_diario_bytes(garmin, manual, detalle, progreso_meta):
+    buf, _fecha = reportes.build_daily_report(garmin, manual, detalle, progreso_meta)
     return buf.getvalue()
 
 
 @st.cache_data(ttl=30)
-def reporte_semanal_bytes(garmin, manual):
-    return reportes.build_weekly_report(garmin, manual).getvalue()
+def reporte_semanal_bytes(garmin, manual, detalle, progreso_meta):
+    return reportes.build_weekly_report(garmin, manual, detalle, progreso_meta).getvalue()
 
 
 @st.cache_data(ttl=30)
@@ -1351,6 +1398,7 @@ st.markdown(
         <div class="hud-title">HELIOS <span class="court-accent">COURT</span></div>
         <div class="hud-sub">SALUD · RECUPERACIÓN · RENDIMIENTO // GARMIN LIVE</div>
       </div>
+      <div class="hud-net"></div>
       <div class="hud-header-right">
         <div class="hud-clock">{ahora.strftime('%Y-%m-%d')} · {ahora.strftime('%H:%M:%S')}</div>
         <div class="hud-status"><span class="status-dot"></span>SISTEMA ACTIVO</div>
@@ -1363,10 +1411,10 @@ st.markdown(
 st.markdown(
     """
     <div class="court-strip">
-      <span class="court-chip"><b>01</b> BODY</span>
-      <span class="court-chip"><b>02</b> RECOVERY</span>
-      <span class="court-chip"><b>03</b> LOAD</span>
-      <span class="court-chip"><b>04</b> COURT PERFORMANCE</span>
+      <span class="court-chip"><span class="chip-dot"></span><b>01</b> BODY</span>
+      <span class="court-chip"><span class="chip-dot"></span><b>02</b> RECOVERY</span>
+      <span class="court-chip"><span class="chip-dot"></span><b>03</b> LOAD</span>
+      <span class="court-chip"><span class="chip-dot"></span><b>04</b> COURT PERFORMANCE</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1415,6 +1463,10 @@ pasos_last, pasos_prev, pasos_fecha = ultimo_previo(garmin, "pasos")
 sueno_last, sueno_prev, sueno_fecha = ultimo_previo(garmin, "horas_sueno")
 hrv_last, hrv_prev, hrv_fecha = ultimo_previo(garmin, "hrv_ms")
 tr_last, tr_prev, tr_fecha = ultimo_previo(garmin, "training_readiness")
+# Calorías totales del día = activas + reposo (BMR). min_count=1: si faltan
+# las dos, queda NaN en vez de mostrar 0 como si fuera un dato real.
+garmin["calorias_totales"] = garmin[["calorias_activas", "calorias_reposo"]].sum(axis=1, min_count=1)
+cal_last, cal_prev, cal_fecha = ultimo_previo(garmin, "calorias_totales")
 
 m1, m2, m3 = st.columns(3)
 with m1:
@@ -1439,7 +1491,7 @@ with m3:
         delta=(f"{sueno_last - sueno_prev:+.1f} h" if sueno_last is not None and sueno_prev is not None else None),
         help=(f"Último registro: {sueno_fecha.date()}" if sueno_fecha is not None else None),
     )
-mr1, mr2 = st.columns(2)
+mr1, mr2, mr3 = st.columns(3)
 with mr1:
     st.metric(
         "HRV",
@@ -1453,6 +1505,16 @@ with mr2:
         f"{int(tr_last)}/100" if tr_last is not None else "—",
         delta=(f"{int(tr_last - tr_prev):+}" if tr_last is not None and tr_prev is not None else None),
         help=(f"Último registro: {tr_fecha.date()}" if tr_fecha is not None else None),
+    )
+with mr3:
+    st.metric(
+        "Calorías",
+        f"{int(cal_last):,} kcal" if cal_last is not None else "—",
+        delta=(f"{int(cal_last - cal_prev):+,} kcal" if cal_last is not None and cal_prev is not None else None),
+        help=(
+            f"Activas + reposo (BMR). Último registro: {cal_fecha.date()}"
+            if cal_fecha is not None else "Activas + reposo (BMR)"
+        ),
     )
 
 # --- Barra de control ---
@@ -1671,33 +1733,6 @@ with st.container(border=True):
     st.caption("Comparación contra baseline personal; no constituye diagnóstico médico.")
 
 with st.container(border=True):
-    st.subheader("Baseline Anomalies & Correlation Insights")
-    anomalias = baseline_df[baseline_df.get("anomaly", pd.Series(dtype=str)) != "Normal"].copy()
-    if anomalias.empty:
-        st.success("No hay desviaciones estadísticas destacables con los datos disponibles.")
-    else:
-        st.dataframe(
-            anomalias[["label", "current", "baseline_28d", "zscore", "historical_percentile", "anomaly"]]
-            .rename(columns={
-                "label": "Métrica", "current": "Actual", "baseline_28d": "Baseline 28D",
-                "zscore": "Z-score", "historical_percentile": "Percentil", "anomaly": "Clasificación",
-            }),
-            use_container_width=True, hide_index=True,
-        )
-    correlations = ha.correlation_insights(garmin)
-    available_corr = correlations[correlations["status"] == "Available"] if not correlations.empty else pd.DataFrame()
-    if available_corr.empty:
-        st.info("Correlaciones: Insufficient Data (se requieren al menos 10 pares válidos).")
-    else:
-        st.dataframe(
-            available_corr[["relationship", "lag_days", "pearson_r", "strength", "direction", "n"]]
-            .rename(columns={
-                "relationship": "Relación", "lag_days": "Lag (días)", "pearson_r": "Pearson r",
-                "strength": "Fuerza", "direction": "Dirección", "n": "N pares",
-            }), use_container_width=True, hide_index=True,
-        )
-        st.caption("Asociaciones estadísticas descriptivas; correlación no implica causalidad.")
-
     with st.expander("Data Quality / cobertura"):
         st.dataframe(ha.data_quality(garmin), use_container_width=True, hide_index=True)
         if "source_device_id" in garmin and garmin["source_device_id"].notna().any():
@@ -1717,7 +1752,7 @@ with st.container(border=True):
     with x1:
         st.download_button(
             "Exportar Reporte Diario a Excel",
-            data=reporte_diario_bytes(garmin, manual),
+            data=reporte_diario_bytes(garmin, manual, detalle, progreso_meta),
             file_name=f"reporte_diario_{fref}.xlsx",
             mime=reportes.XLSX_MIME,
             help="RESUMEN_HOY, ANOMALIAS_HOY, EVENTOS_RECIENTES (7 días).",
@@ -1725,7 +1760,7 @@ with st.container(border=True):
     with x2:
         st.download_button(
             "Exportar Reporte Semanal a Excel",
-            data=reporte_semanal_bytes(garmin, manual),
+            data=reporte_semanal_bytes(garmin, manual, detalle, progreso_meta),
             file_name=f"reporte_semanal_{fref}.xlsx",
             mime=reportes.XLSX_MIME,
             help="Datos diarios (30d), comparativa, promedios móviles, ventana dosis, eventos, carga.",
@@ -1888,6 +1923,27 @@ with st.container(border=True):
                     {fecha_txt2}
                   </div>
                   <div class="ts-meta">{meta_txt2}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        peso_inicial_track = progreso_meta.get("peso_inicial")
+        peso_objetivo_track = progreso_meta.get("peso_objetivo")
+        if peso_inicial_track is not None and peso_objetivo_track is not None and peso_inicial_track != peso_objetivo_track:
+            avance_pct = (peso_inicial_track - progreso_meta["peso_actual"]) / (peso_inicial_track - peso_objetivo_track)
+            avance_pct = max(0.0, min(1.0, avance_pct)) * 100
+            st.markdown(
+                f"""
+                <div class="match-track-wrap">
+                  <div class="match-track-label">
+                    <span>SALIDA · {peso_inicial_track:.1f} kg</span>
+                    <span>META · {peso_objetivo_track:.1f} kg</span>
+                  </div>
+                  <div class="match-track">
+                    <div class="match-track-fill" style="width:{avance_pct:.1f}%;"></div>
+                    <div class="match-ball" style="left:{avance_pct:.1f}%;"></div>
+                  </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
