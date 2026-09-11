@@ -529,8 +529,22 @@ def load_data():
     except Exception:
         # Tabla todavía no existe: corre garmin_sync.py de nuevo para crearla.
         detalle = pd.DataFrame(columns=COLS_DETALLE_ACTIVIDAD)
+    try:
+        series_fuerza = pd.read_sql_query(
+            "SELECT * FROM series_fuerza ORDER BY activity_id, orden",
+            conn,
+            parse_dates=["fecha"],
+        )
+    except Exception:
+        # Tabla todavía no existe: corre garmin_sync.py de nuevo para crearla.
+        series_fuerza = pd.DataFrame(
+            columns=[
+                "activity_id", "orden", "fecha", "ejercicio", "peso_kg",
+                "repeticiones", "duracion_seg", "hora_local",
+            ]
+        )
     conn.close()
-    return garmin, manual, detalle
+    return garmin, manual, detalle, series_fuerza
 
 
 def guardar_peso(fecha, peso_manual):
@@ -1106,10 +1120,10 @@ def hr_zone_chart(fila):
     return base_layout(fig, "Tiempo en zonas de FC", "minutos")
 
 
-def render_activity_detail(fila):
+def render_activity_detail(fila, series_fuerza=None):
     """Panel HUD con el detalle completo de una actividad: FC, zonas,
     calorías/duración y métricas específicas del deporte (distancia/ritmo
-    o series/repeticiones)."""
+    o series/repeticiones, con peso por serie si es fuerza)."""
     nombre = fila.get("nombre") or fila.get("tipo_actividad")
     st.markdown(
         f"**{nombre}** &nbsp;·&nbsp; {fila['fecha'].date()} "
@@ -1160,6 +1174,27 @@ def render_activity_detail(fila):
             f"🏋️ Series: {int(fila['series_totales'])} · Repeticiones: {reps} · "
             f"Principales ejercicios: {fila.get('ejercicios_detectados') or '—'}"
         )
+        detalle_series = None
+        if series_fuerza is not None and not series_fuerza.empty:
+            detalle_series = series_fuerza[
+                series_fuerza["activity_id"] == fila.get("activity_id")
+            ].sort_values("orden")
+        if detalle_series is not None and not detalle_series.empty:
+            tabla_series = detalle_series[["orden", "ejercicio", "peso_kg", "repeticiones", "duracion_seg"]].rename(
+                columns={
+                    "orden": "Serie", "ejercicio": "Ejercicio", "peso_kg": "Peso (kg)",
+                    "repeticiones": "Reps", "duracion_seg": "Duración (seg)",
+                }
+            )
+            st.dataframe(tabla_series, use_container_width=True, hide_index=True)
+            if (detalle_series["peso_kg"].fillna(0) == 0).all():
+                st.caption(
+                    "El peso de todas las series salió en 0 kg -- Garmin no recibió el "
+                    "peso cargado para este entrenamiento (hay que ingresarlo en el reloj "
+                    "o editar la actividad en la app de Garmin Connect)."
+                )
+        else:
+            st.caption("Sin detalle serie por serie disponible para este entrenamiento.")
 
     if pd.notnull(fila.get("carga_entrenamiento")) or pd.notnull(fila.get("efecto_aerobico")):
         carga = fila.get("carga_entrenamiento")
@@ -1184,14 +1219,18 @@ def build_excel_export(garmin, manual):
 # Wrappers cacheados: los .xlsx solo se regeneran cuando cambian los datos
 # (o cada 30 s), no en cada interacción con la página.
 @st.cache_data(ttl=30)
-def reporte_diario_bytes(garmin, manual, detalle, progreso_meta):
-    buf, _fecha = reportes.build_daily_report(garmin, manual, detalle, progreso_meta)
+def reporte_diario_bytes(garmin, manual, detalle, progreso_meta, series_fuerza):
+    buf, _fecha = reportes.build_daily_report(
+        garmin, manual, detalle, progreso_meta, series_fuerza
+    )
     return buf.getvalue()
 
 
 @st.cache_data(ttl=30)
-def reporte_semanal_bytes(garmin, manual, detalle, progreso_meta):
-    return reportes.build_weekly_report(garmin, manual, detalle, progreso_meta).getvalue()
+def reporte_semanal_bytes(garmin, manual, detalle, progreso_meta, series_fuerza):
+    return reportes.build_weekly_report(
+        garmin, manual, detalle, progreso_meta, series_fuerza
+    ).getvalue()
 
 
 @st.cache_data(ttl=30)
@@ -1443,7 +1482,7 @@ if not os.path.exists(DB_PATH):
 
 ensure_meta_table()
 ensure_tracker_manual_columns()
-garmin, manual, detalle = load_data()
+garmin, manual, detalle, series_fuerza = load_data()
 
 # --- Indicadores HUD del día ---
 peso_df = build_weight_df(garmin, manual)
@@ -1752,7 +1791,7 @@ with st.container(border=True):
     with x1:
         st.download_button(
             "Exportar Reporte Diario a Excel",
-            data=reporte_diario_bytes(garmin, manual, detalle, progreso_meta),
+            data=reporte_diario_bytes(garmin, manual, detalle, progreso_meta, series_fuerza),
             file_name=f"reporte_diario_{fref}.xlsx",
             mime=reportes.XLSX_MIME,
             help="RESUMEN_HOY, ANOMALIAS_HOY, EVENTOS_RECIENTES (7 días).",
@@ -1760,7 +1799,7 @@ with st.container(border=True):
     with x2:
         st.download_button(
             "Exportar Reporte Semanal a Excel",
-            data=reporte_semanal_bytes(garmin, manual, detalle, progreso_meta),
+            data=reporte_semanal_bytes(garmin, manual, detalle, progreso_meta, series_fuerza),
             file_name=f"reporte_semanal_{fref}.xlsx",
             mime=reportes.XLSX_MIME,
             help="Datos diarios (30d), comparativa, promedios móviles, ventana dosis, eventos, carga.",
@@ -2157,7 +2196,7 @@ with st.container(border=True):
             if etiqueta_sel:
                 fila_sel = detalle[detalle["activity_id"] == opciones[etiqueta_sel]].iloc[0]
                 with st.container(border=True):
-                    render_activity_detail(fila_sel)
+                    render_activity_detail(fila_sel, series_fuerza)
 
 with st.container(border=True):
     st.subheader("Historial de dosis")

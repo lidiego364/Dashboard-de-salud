@@ -266,6 +266,21 @@ def init_db(conn):
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS series_fuerza (
+            activity_id INTEGER,
+            orden INTEGER,
+            fecha TEXT,
+            ejercicio TEXT,
+            peso_kg REAL,
+            repeticiones INTEGER,
+            duracion_seg REAL,
+            hora_local TEXT,
+            PRIMARY KEY (activity_id, orden)
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS actividades_detalle (
             activity_id INTEGER PRIMARY KEY,
             fecha TEXT,
@@ -344,37 +359,68 @@ def aggregate_activities_by_day(activities):
     return activities_by_day
 
 
+def _mejor_ejercicio(ejercicios):
+    """De la lista `exercises` de un set (candidatos con `probability`),
+    elige el de mayor probabilidad, evitando UNKNOWN si hay una alternativa
+    mejor."""
+    if not ejercicios:
+        return None
+    ordenados = sorted(ejercicios, key=lambda e: e.get("probability") or 0, reverse=True)
+    no_unknown = [e for e in ordenados if e.get("category") and e.get("category") != "UNKNOWN"]
+    elegido = no_unknown[0] if no_unknown else ordenados[0]
+    return elegido.get("category")
+
+
 def fetch_exercise_sets(api, activity_id):
-    """Para entrenamientos de fuerza: series totales, repeticiones totales y
-    los ejercicios principales detectados, vía get_activity_exercise_sets.
-    Devuelve (series_totales, repeticiones_totales, ejercicios_detectados),
-    todo None si el método falla o no hay datos (p.ej. no es de fuerza)."""
+    """Para entrenamientos de fuerza: series totales, repeticiones totales,
+    los ejercicios principales detectados, y el detalle serie por serie
+    (ejercicio, peso, repeticiones, duración) vía get_activity_exercise_sets.
+
+    Garmin reporta el peso de cada serie en GRAMOS (igual que el peso
+    corporal en get_body_composition) -- se convierte a kg acá. Si nunca se
+    cargó el peso en el reloj o en la app durante esa serie, Garmin devuelve
+    0.0: no es un fallo nuestro, es que esa serie quedó sin peso registrado
+    del lado de Garmin.
+
+    Devuelve (series_totales, repeticiones_totales, ejercicios_detectados,
+    series_detalle); series_detalle es una lista de
+    (orden, ejercicio, peso_kg, repeticiones, duracion_seg, hora_local).
+    Todo None/[] si el método falla o no hay datos de fuerza."""
     try:
         datos = api.get_activity_exercise_sets(activity_id)
         sets = (datos or {}).get("exerciseSets") or []
         activos = [s for s in sets if s.get("setType") == "ACTIVE"]
         if not activos:
-            return None, None, None
+            return None, None, None, []
         series_totales = len(activos)
         repeticiones_totales = sum(s.get("repetitionCount") or 0 for s in activos)
         conteo = {}
-        for s in activos:
-            ejercicios = s.get("exercises") or []
-            if not ejercicios:
-                continue
-            principal = max(ejercicios, key=lambda e: e.get("probability") or 0)
-            categoria = principal.get("category")
+        series_detalle = []
+        for orden, s in enumerate(activos, start=1):
+            categoria = _mejor_ejercicio(s.get("exercises") or [])
             if categoria:
                 conteo[categoria] = conteo.get(categoria, 0) + 1
+            peso_g = s.get("weight")
+            duracion = s.get("duration")
+            series_detalle.append(
+                (
+                    orden,
+                    categoria,
+                    round(peso_g / 1000, 2) if peso_g is not None else None,
+                    s.get("repetitionCount"),
+                    round(duracion, 1) if duracion is not None else None,
+                    s.get("startTime"),
+                )
+            )
         principales = sorted(conteo.items(), key=lambda kv: kv[1], reverse=True)
         nombres = [c for c, _n in principales if c != "UNKNOWN"][:3]
         if not nombres:
             nombres = [c for c, _n in principales[:3]]
         ejercicios_detectados = ", ".join(nombres) if nombres else None
-        return series_totales, repeticiones_totales, ejercicios_detectados
+        return series_totales, repeticiones_totales, ejercicios_detectados, series_detalle
     except Exception as exc:
         print(f"  Aviso: no se pudieron obtener series de la actividad {activity_id}: {exc}")
-        return None, None, None
+        return None, None, None, []
 
 
 def build_activity_details(api, activities):
@@ -383,8 +429,9 @@ def build_activity_details(api, activities):
     (fuerza). La mayoría de los campos ya vienen en el resumen de
     get_activities_by_date -- solo las series de fuerza requieren una llamada
     adicional por actividad (get_activity_exercise_sets).
-    Devuelve (filas_para_insertar, stats_de_disponibilidad)."""
+    Devuelve (filas_para_insertar, stats_de_disponibilidad, series_fuerza_rows)."""
     filas = []
+    series_fuerza_rows = []
     stats = {
         "fc_promedio": 0,
         "fc_zonas": 0,
@@ -422,9 +469,13 @@ def build_activity_details(api, activities):
 
         series_totales = repeticiones_totales = ejercicios_detectados = None
         if tipo == "strength_training":
-            series_totales, repeticiones_totales, ejercicios_detectados = fetch_exercise_sets(
-                api, activity_id
+            series_totales, repeticiones_totales, ejercicios_detectados, series_detalle = (
+                fetch_exercise_sets(api, activity_id)
             )
+            for orden, ejercicio, peso_kg, reps, dur_seg, hora_local in series_detalle:
+                series_fuerza_rows.append(
+                    (activity_id, orden, fecha, ejercicio, peso_kg, reps, dur_seg, hora_local)
+                )
 
         if fc_promedio is not None:
             stats["fc_promedio"] += 1
@@ -462,7 +513,7 @@ def build_activity_details(api, activities):
                 ejercicios_detectados,
             )
         )
-    return filas, stats
+    return filas, stats, series_fuerza_rows
 
 
 def fetch_day_metrics(api, day_str):
@@ -699,7 +750,7 @@ def sync():
     body_battery_by_date = fetch_body_battery_by_day(api, start, end)
 
     print(f"Descargando detalle de {len(activities)} entrenamiento(s)...")
-    detalle_rows, detalle_stats = build_activity_details(api, activities)
+    detalle_rows, detalle_stats, series_fuerza_rows = build_activity_details(api, activities)
 
     conn = sqlite3.connect(DB_PATH)
     init_db(conn)
@@ -907,6 +958,19 @@ def sync():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             detalle_rows,
+        )
+        conn.commit()
+
+    if series_fuerza_rows:
+        conn.executemany(
+            """
+            INSERT OR REPLACE INTO series_fuerza (
+                activity_id, orden, fecha, ejercicio, peso_kg, repeticiones,
+                duracion_seg, hora_local
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            series_fuerza_rows,
         )
         conn.commit()
 

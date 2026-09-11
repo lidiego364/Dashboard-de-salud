@@ -262,6 +262,30 @@ def _resumen_meta(progreso_meta):
     return pd.DataFrame(filas, columns=["campo", "valor"])
 
 
+COLS_SERIES_FUERZA = [
+    ("fecha", "fecha"), ("activity_id", "activity_id"), ("orden", "serie"),
+    ("ejercicio", "ejercicio"), ("peso_kg", "peso (kg)"),
+    ("repeticiones", "repeticiones"), ("duracion_seg", "duración (seg)"),
+]
+
+
+def _series_fuerza_detalle(series_fuerza, fecha_ref, dias):
+    """Detalle serie por serie (ejercicio, peso, repeticiones) de los
+    entrenamientos de fuerza en los últimos `dias` días -- viene directo de
+    Garmin (get_activity_exercise_sets). Si el peso sale en 0 en todas las
+    filas es porque no se cargó el peso del lado de Garmin (reloj o app),
+    no es un error del reporte."""
+    if series_fuerza is None or series_fuerza.empty:
+        return pd.DataFrame([{"estado": "Sin series de fuerza registradas"}])
+    inicio = pd.Timestamp(fecha_ref) - pd.Timedelta(days=dias - 1)
+    win = series_fuerza[
+        (series_fuerza["fecha"] >= inicio) & (series_fuerza["fecha"] <= pd.Timestamp(fecha_ref))
+    ].sort_values(["fecha", "activity_id", "orden"])
+    if win.empty:
+        return pd.DataFrame([{"estado": "Sin series de fuerza en el periodo"}])
+    return _tabla_ancha(win, COLS_SERIES_FUERZA)
+
+
 def _detalle_actividades(detalle, fecha_ref, dias):
     """Detalle por entrenamiento (nombre, FC, zonas, series/reps, etc.) en
     los últimos `dias` días, en vez de solo el agregado de carga."""
@@ -407,7 +431,7 @@ def _baseline_hoy(garmin):
     return resumen, resumen_view, anomalias_view
 
 
-def build_daily_report(garmin, manual, detalle=None, progreso_meta=None):
+def build_daily_report(garmin, manual, detalle=None, progreso_meta=None, series_fuerza=None):
     fecha_ref = fecha_referencia(garmin)
 
     baseline_raw, resumen_df, anomalias_df = _baseline_hoy(garmin)
@@ -415,6 +439,7 @@ def build_daily_report(garmin, manual, detalle=None, progreso_meta=None):
     meta_df = _resumen_meta(progreso_meta)
     sueno_df = _sueno_recuperacion(garmin, dias_list=[7])
     actividades_df = _detalle_actividades(detalle, fecha_ref, dias=7)
+    series_fuerza_df = _series_fuerza_detalle(series_fuerza, fecha_ref, dias=7)
     sleep_debt = ha.sleep_debt_summary(garmin)
     resumen_ejecutivo_df = _resumen_ejecutivo(
         progreso_meta, baseline_raw, eventos_df, sleep_debt, "hoy"
@@ -429,6 +454,7 @@ def build_daily_report(garmin, manual, detalle=None, progreso_meta=None):
         sueno_df.to_excel(w, sheet_name="SUENO_RECUPERACION", index=False)
         eventos_df.to_excel(w, sheet_name="EVENTOS_RECIENTES", index=False)
         actividades_df.to_excel(w, sheet_name="ACTIVIDADES_RECIENTES", index=False)
+        series_fuerza_df.to_excel(w, sheet_name="SERIES_FUERZA", index=False)
     buf.seek(0)
     return buf, fecha_ref
 
@@ -590,7 +616,7 @@ def _carga_entrenamiento(last30):
     )
 
 
-def build_weekly_report(garmin, manual, detalle=None, progreso_meta=None):
+def build_weekly_report(garmin, manual, detalle=None, progreso_meta=None, series_fuerza=None):
     dm = _daily_metrics(garmin, manual)
     last30 = dm.tail(30).reset_index(drop=True)
     fecha_ref = fecha_referencia(garmin)
@@ -604,6 +630,7 @@ def build_weekly_report(garmin, manual, detalle=None, progreso_meta=None):
     meta_df = _resumen_meta(progreso_meta)
     sueno_df = _sueno_recuperacion(garmin, dias_list=[7, 14, 28])
     actividades_df = _detalle_actividades(detalle, fecha_ref, dias=30)
+    series_fuerza_df = _series_fuerza_detalle(series_fuerza, fecha_ref, dias=30)
     baseline_raw = ha.baseline_summary(garmin, config=METRIC_CONFIG_REPORTES)
     sleep_debt = ha.sleep_debt_summary(garmin)
     resumen_ejecutivo_df = _resumen_ejecutivo(
@@ -621,6 +648,7 @@ def build_weekly_report(garmin, manual, detalle=None, progreso_meta=None):
         ventana.to_excel(w, sheet_name="VENTANA_DOSIS", index=False)
         eventos.to_excel(w, sheet_name="EVENTOS", index=False)
         actividades_df.to_excel(w, sheet_name="ACTIVIDADES_DETALLE", index=False)
+        series_fuerza_df.to_excel(w, sheet_name="SERIES_FUERZA", index=False)
         carga.to_excel(w, sheet_name="CARGA_ENTRENAMIENTO", index=False)
     buf.seek(0)
     return buf
