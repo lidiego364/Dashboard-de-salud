@@ -9,11 +9,13 @@ import { dayNum, dowShort, greeting, monShort, relativeDays, shortDate, todayISO
 import { tasksForToday, upcomingDeadlines, weekAhead } from "@/lib/selectors";
 import { AREA_KEYS, AREAS, type Area } from "@/lib/types";
 import { DEMO } from "@/lib/demo";
+import { useHealth } from "@/components/useHealth";
 
 export default function HoyPage() {
   const { tasks, reminders, loading, mode, loadExample } = useData();
   const [adding, setAdding] = useState<{ date: string | null } | null>(null);
-  if (loading) return <Loading />;
+  const health = useHealth();
+  if (loading || !health) return <Loading />;
 
   const today = todayISO();
   const todays = tasksForToday(tasks, today, todayISO);
@@ -215,14 +217,18 @@ export default function HoyPage() {
 
             <Card>
               <KickerRow kicker="Salud">
-                <DemoTag phase="fase 2" />
+                {health.live ? (
+                  <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Garmin · {health.view.syncedLabel}</span>
+                ) : (
+                  <DemoTag phase="fase 2" />
+                )}
                 <GoToButton href="/salud" label="Detalle" />
               </KickerRow>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-                <Stat label="Peso" value="86.8" unit="kg" big />
-                <Stat label="Tendencia 7 días" value="87.2" unit="kg" big accent />
-                <Stat label="Pasos hoy" value="6,240" unit="/ 10k" />
-                <Stat label="Sueño anoche" value="7h 05m" />
+                <Stat label="Peso" value={health.view.hoy.weight} unit="kg" big />
+                <Stat label="Tendencia 7 días" value={health.view.hoy.trend} unit="kg" big accent />
+                <Stat label="Pasos hoy" value={health.view.hoy.steps} unit={`/ ${health.view.hoy.stepGoal}`} />
+                <Stat label="Sueño anoche" value={health.view.hoy.sleep} />
               </div>
             </Card>
 

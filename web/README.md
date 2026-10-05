@@ -18,7 +18,7 @@ Lo que aún no tiene fuente real se muestra con la etiqueta **“ejemplo · fase
 
 ## Versión de un solo archivo (`diego-os.html`)
 
-En la raíz del repo está **`diego-os.html`**: la app entera en un archivo, sin servidor,
+`npm run standalone` genera en la raíz del repo **`diego-os.html`**: la app entera en un archivo, sin servidor,
 sin Supabase y sin instalar nada. Ábrelo con doble clic en el navegador.
 
 - Los datos se guardan **en ese navegador** (localStorage). Otro navegador u otro
@@ -27,6 +27,11 @@ sin Supabase y sin instalar nada. Ábrelo con doble clic en el navegador.
   **importarlo** en otro navegador. Si borras los datos del navegador, se pierde lo que
   no hayas respaldado.
 - Para regenerarlo después de cambiar el código: `cd web && npm run standalone`.
+- **Datos de Garmin:** si existe `web/standalone/garmin-snapshot.json`, se incrustan en
+  el HTML y la pestaña Salud muestra tus datos reales (peso, tendencia, pasos, sueño,
+  FC en reposo, Body Battery, entrenamientos). Ese JSON y el HTML generado están en
+  `.gitignore`: **nunca se suben al repo** porque son datos de salud personales.
+  El formato está en `lib/health.ts` (`GarminSnapshot`).
 
 ## Probar en local
 

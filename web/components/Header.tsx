@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useData } from "./DataProvider";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { longToday } from "@/lib/dates";
+import { useHealth } from "./useHealth";
 
 export const TABS = [
   { href: "/", label: "Hoy", icon: "ph ph-sun-horizon" },
@@ -22,6 +23,7 @@ export function Header() {
   const { mode, error, clearError, exportBackup, importBackup } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
   const standalone = process.env.NEXT_PUBLIC_STANDALONE === "1";
+  const health = useHealth();
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([exportBackup()], { type: "application/json" }));
@@ -82,9 +84,15 @@ export function Header() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {mode === "demo" ? (
             <>
-              <span className="tag tag-accent" style={{ gap: 6 }} title="Los datos se guardan solo en este navegador">
+              {health?.live && (
+                <span className="tag tag-neutral" style={{ gap: 6 }} title="Datos de Garmin incluidos al generar este archivo">
+                  <i className="ph ph-watch" />
+                  Garmin · {health.view.syncedLabel}
+                </span>
+              )}
+              <span className="tag tag-accent" style={{ gap: 6 }} title="Tus tareas se guardan solo en este navegador">
                 <i className={standalone ? "ph ph-hard-drives" : "ph ph-flask"} />
-                {standalone ? "Guardado en este navegador" : "Modo demo"}
+                {standalone ? "Local" : "Modo demo"}
               </span>
               <button className="btn btn-secondary btn-icon" aria-label="Descargar respaldo" title="Descargar respaldo (.json)" onClick={download}>
                 <i className="ph ph-download-simple" style={{ fontSize: 16 }} />

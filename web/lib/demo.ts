@@ -1,6 +1,8 @@
 // Datos estáticos del prototipo para las secciones que todavía no tienen
-// fuente real: Universidad (Canvas, fase 3), Salud (Garmin, fase 2) y
-// Finanzas (PocketSmith/CSV, fase 4). Se reemplazan pieza por pieza.
+// fuente real: Universidad (Canvas, fase 3), Salud (Garmin, cuando no hay
+// foto incrustada) y Finanzas (PocketSmith/CSV, fase 4).
+import { addDays, todayISO } from "./dates";
+import type { GarminSnapshot } from "./health";
 
 export const DEMO = {
   budget: { month: "octubre", total: 1800, spent: 286, perDay: 56 },
@@ -24,27 +26,6 @@ export const DEMO = {
     { code: "ISM 3232", name: "Business Analytics", grade: "A− · 90%" },
   ],
 
-  weights: [89.4, 89.1, 89.6, 89.0, 88.8, 89.2, 88.7, 88.9, 88.5, 88.8, 88.3, 88.6, 88.1, 88.4, 88.0, 87.75, 87.7, 87.6, 87.9, 87.5, 87.7, 87.3, 87.6, 87.1, 87.4, 86.9, 87.2, 86.8],
-  goalKg: 85,
-  weightStats: [
-    { label: "Peso hoy", value: "86.8 kg", sub: "−0.4 vs ayer", accent: false },
-    { label: "Tendencia 7 días", value: "87.2 kg", sub: "El número que importa", accent: true },
-    { label: "Pérdida semanal", value: "−0.55 kg", sub: "0.63% del peso · ritmo sostenible", accent: false },
-    { label: "Estimado 85 kg", value: "25–30 oct", sub: "Al ritmo actual de tendencia", accent: false },
-  ],
-  healthMetrics: [
-    { icon: "ph ph-ruler", label: "Cintura", value: "91.5 cm", pct: 60, sub: "−1.0 cm en 2 semanas" },
-    { icon: "ph ph-sneaker-move", label: "Pasos", value: "6,240", pct: 62, sub: "Media 7 días 8,420" },
-    { icon: "ph ph-moon", label: "Sueño", value: "7h 05m", pct: 88, sub: "Garmin · score 78" },
-    { icon: "ph ph-fire", label: "Calorías", value: "1,480", pct: 67, sub: "de 2,200 kcal · 132 g proteína" },
-    { icon: "ph ph-barbell", label: "Gym", value: "3 / 5", pct: 60, sub: "Sesiones esta semana" },
-  ],
-  workouts: [
-    { day: "Lun 28", name: "Upper A · press banca 4×6 @ 80 kg", dur: "62 min", src: "Manual" },
-    { day: "Mar 29", name: "Lower A · sentadilla 4×5 @ 100 kg", dur: "58 min", src: "Manual" },
-    { day: "Jue 1", name: "Zona 2 · 5.2 km", dur: "34 min", src: "Garmin" },
-    { day: "Vie 2", name: "Upper B · dominadas 4×8", dur: "55 min", src: "Manual" },
-  ],
   photos: ["1 ago", "1 sep", "1 oct"],
 
   insights: [
@@ -78,3 +59,25 @@ export const DEMO = {
     { date: "24 sep", merchant: "Publix", cat: "Food", amt: "$62.13" },
   ],
 };
+
+/** Foto de Garmin inventada (la del prototipo), con fechas relativas a hoy. */
+export function demoSnapshot(): GarminSnapshot {
+  const ref = todayISO();
+  const weights = [89.4, 89.1, 89.6, 89.0, 88.8, 89.2, 88.7, 88.9, 88.5, 88.8, 88.3, 88.6, 88.1, 88.4, 88.0, 87.75, 87.7, 87.6, 87.9, 87.5, 87.7, 87.3, 87.6, 87.1, 87.4, 86.9, 87.2, 86.8];
+  const steps = [9100, 7800, 10200, 8400, 7600, 9300, 6240];
+  const at = (n: number, time: string) => `${addDays(ref, n)} ${time}`;
+  return {
+    synced_at: new Date().toISOString(),
+    goal_kg: 85,
+    weights: weights.map((kg, i) => ({ date: addDays(ref, i - weights.length + 1), kg })),
+    days: steps.map((s, i) => ({ date: addDays(ref, i - steps.length + 1), steps: s, total_kcal: 2900 + (s % 700), active_kcal: 600 + (s % 500), partial: i === steps.length - 1 })),
+    sleep: [{ date: ref, hours: 7.08, score: 78, hrv: 88 }],
+    activities: [
+      { start: at(-6, "18:00:00"), type: "strength_training", name: "Upper A", minutes: 62, distance_m: null, kcal: 480, avg_hr: 112 },
+      { start: at(-5, "18:00:00"), type: "strength_training", name: "Lower A", minutes: 58, distance_m: null, kcal: 455, avg_hr: 118 },
+      { start: at(-3, "07:30:00"), type: "running", name: "Zona 2", minutes: 34, distance_m: 5200, kcal: 390, avg_hr: 138 },
+      { start: at(-2, "18:00:00"), type: "strength_training", name: "Upper B", minutes: 55, distance_m: null, kcal: 430, avg_hr: 110 },
+    ],
+    today: { date: ref, steps: 6240, step_goal: 10000, resting_hr: 56, resting_hr_7d: 57, body_battery: 64, body_battery_high: 92 },
+  };
+}

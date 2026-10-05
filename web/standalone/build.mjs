@@ -1,7 +1,7 @@
 // Genera ../diego-os.html: la app entera en un solo archivo (JS, CSS, fuentes
 // e íconos incluidos), sin servidor ni Supabase. Uso: npm run standalone
 import { build } from "esbuild";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +53,12 @@ const css = [
   readFileSync(resolve(web, "app/globals.css"), "utf8"),
 ].join("\n");
 
+// Foto de Garmin (opcional, no se sube al repo): standalone/garmin-snapshot.json
+const snapPath = resolve(here, "garmin-snapshot.json");
+const garmin = existsSync(snapPath)
+  ? `<script>window.__GARMIN__=${JSON.stringify(JSON.parse(readFileSync(snapPath, "utf8"))).replace(/</g, "\\u003c")}</script>\n`
+  : "";
+
 const icon = readFileSync(resolve(web, "app/icon.svg"), "utf8");
 
 const html = `<!doctype html>
@@ -67,10 +73,10 @@ const html = `<!doctype html>
 </head>
 <body>
 <div id="root"></div>
-<script>${js.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script>
+${garmin}<script>${js.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script>
 </body>
 </html>
 `;
 
 writeFileSync(out, html);
-console.log(`${out} · ${(html.length / 1024).toFixed(0)} KB`);
+console.log(`${out} · ${(html.length / 1024).toFixed(0)} KB · Garmin: ${garmin ? "incluido" : "datos de ejemplo"}`);

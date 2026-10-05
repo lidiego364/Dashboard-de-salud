@@ -6,3 +6,6 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 .vercel
+
+# Datos personales: nunca al repo
+standalone/garmin-snapshot.json
