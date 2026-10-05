@@ -41,6 +41,9 @@ página privada en claude.ai:
 - **Garmin en vivo:** al abrirla, lee tus datos con tu propio conector "Garmin
   connection" (5 herramientas de solo lectura: resumen del día, pesajes, pasos/calorías,
   actividades y sueño). No guarda ninguna foto dentro del archivo.
+- **Google Calendar en vivo:** lee tus eventos de los próximos 7 días con el conector
+  "Google Calendar" (solo `list_events`, lectura). Aparecen en "Esta semana", en la tarjeta
+  "Hoy en tu calendario" y en el resumen de arriba; cada evento abre en Google Calendar.
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

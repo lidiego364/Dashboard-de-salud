@@ -1,5 +1,6 @@
 import { addDays, daysBetween } from "./dates";
 import type { Area, Reminder, Task } from "./types";
+import type { CalEvent } from "./calendar";
 
 const doneOn = (t: Task, day: string, toISO: (d: Date) => string) => !!t.done_at && toISO(new Date(t.done_at)) === day;
 
@@ -33,29 +34,38 @@ export function upcomingReminders(reminders: Reminder[], area?: Area): Reminder[
     .sort((a, b) => a.remind_on.localeCompare(b.remind_on));
 }
 
-export type WeekEvent = { id: string; kind: "task" | "reminder"; area: Area; time: string; title: string; done: boolean };
+export type WeekEvent = {
+  id: string;
+  kind: "task" | "reminder" | "calendar";
+  area: Area | null;
+  time: string;
+  title: string;
+  done: boolean;
+  link?: string | null;
+};
 
-/** Siete días a partir de hoy, con tareas y recordatorios fechados. */
-export function weekAhead(tasks: Task[], reminders: Reminder[], today: string) {
+/** Siete días a partir de hoy: eventos del calendario, tareas y recordatorios.
+ *  Orden del día: lo que tiene hora (por hora), luego lo de todo el día, luego recordatorios. */
+export function weekAhead(tasks: Task[], reminders: Reminder[], today: string, calendar: CalEvent[] = []) {
   return Array.from({ length: 7 }, (_, i) => {
     const day = addDays(today, i);
-    const events: WeekEvent[] = [
-      ...tasks
-        .filter((t) => t.due_date === day)
-        .sort(byDue)
-        .map((t) => ({
-          id: t.id,
-          kind: "task" as const,
-          area: t.area,
-          time: t.due_time ? t.due_time.slice(0, 5) : "Todo el día",
-          title: t.title,
-          done: !!t.done_at,
-        })),
-      ...reminders
-        .filter((r) => r.remind_on === day && !r.done_at)
-        .map((r) => ({ id: r.id, kind: "reminder" as const, area: r.area, time: "—", title: r.title, done: false })),
-    ];
-    return { day, events };
+    const timed: (WeekEvent & { key: string })[] = [];
+    const allDay: WeekEvent[] = [];
+    for (const c of calendar.filter((c) => c.date === day)) {
+      const ev: WeekEvent = { id: c.id, kind: "calendar", area: null, time: c.time ? (c.endTime ? `${c.time}–${c.endTime}` : c.time) : "Todo el día", title: c.title, done: false, link: c.link };
+      if (c.time) timed.push({ ...ev, key: c.time });
+      else allDay.push(ev);
+    }
+    for (const t of tasks.filter((t) => t.due_date === day).sort(byDue)) {
+      const ev: WeekEvent = { id: t.id, kind: "task", area: t.area, time: t.due_time ? t.due_time.slice(0, 5) : "Todo el día", title: t.title, done: !!t.done_at };
+      if (t.due_time) timed.push({ ...ev, key: t.due_time.slice(0, 5) });
+      else allDay.push(ev);
+    }
+    timed.sort((a, b) => a.key.localeCompare(b.key));
+    const rem: WeekEvent[] = reminders
+      .filter((r) => r.remind_on === day && !r.done_at)
+      .map((r) => ({ id: r.id, kind: "reminder", area: r.area, time: "—", title: r.title, done: false }));
+    return { day, events: [...timed.map(({ key: _key, ...e }) => e), ...allDay, ...rem] };
   });
 }
 
