@@ -11,7 +11,28 @@ export type GarminSnapshot = {
   synced_at: string; // ISO con zona
   weights: { date: string; kg: number }[];
   days: { date: string; steps: number; total_kcal: number; active_kcal: number; partial: boolean }[];
-  sleep: { date: string; hours: number; score: number; hrv: number | null }[];
+  sleep: {
+    date: string;
+    hours: number;
+    score: number;
+    hrv: number | null;
+    /** Fases en horas (opcionales: fotos viejas no las traen). */
+    deep_h?: number | null;
+    light_h?: number | null;
+    rem_h?: number | null;
+    awake_h?: number | null;
+  }[];
+  /** Extras de recuperación (opcionales: si su lectura falla, Salud sigue igual). */
+  hrv?: { date: string; ms: number | null; weekly_ms: number | null; status: string | null }[];
+  training?: {
+    status: string | null; // "MAINTAINING_1"
+    acute_load: number | null;
+    chronic_load: number | null;
+    ratio: number | null;
+    acwr_status: string | null; // "OPTIMAL"
+    balance: string | null; // "ANAEROBIC_FOCUS"
+  } | null;
+  recovery_hours?: number | null;
   activities: { start: string; type: string; name: string; minutes: number; distance_m: number | null; kcal: number; avg_hr: number | null }[];
   today: {
     date: string;
@@ -67,6 +88,98 @@ const TYPE_LABEL: Record<string, string> = {
 
 // Solo en estas tiene sentido la distancia (en tenis/raqueta el GPS da números raros).
 const DISTANCE_TYPES = new Set(["treadmill_running", "running", "walking", "cycling", "lap_swimming"]);
+
+// Mismas traducciones que el Streamlit (garmin_sync.ESTADO_ENTRENAMIENTO_ES).
+const TRAINING_ES: Record<string, string> = {
+  PRODUCTIVE: "Productivo",
+  MAINTAINING: "Mantenimiento",
+  RECOVERY: "Recuperación",
+  STRAINED: "Tensión",
+  OVERREACHING: "Sobreesfuerzo",
+  UNPRODUCTIVE: "Improductivo",
+  DETRAINING: "Desentrenamiento",
+  PEAKING: "Punto máximo",
+  NO_STATUS: "Sin estado",
+};
+const HRV_ES: Record<string, { label: string; ok: boolean }> = {
+  BALANCED: { label: "Equilibrado", ok: true },
+  UNBALANCED: { label: "Desequilibrado", ok: false },
+  LOW: { label: "Bajo", ok: false },
+  POOR: { label: "Bajo", ok: false },
+};
+const ACWR_ES: Record<string, { label: string; ok: boolean }> = {
+  OPTIMAL: { label: "óptima", ok: true },
+  LOW: { label: "baja", ok: true },
+  HIGH: { label: "alta", ok: false },
+  VERY_HIGH: { label: "muy alta", ok: false },
+};
+const BALANCE_ES: Record<string, string> = {
+  ANAEROBIC_FOCUS: "Enfoque anaeróbico",
+  AEROBIC_HIGH_FOCUS: "Enfoque aeróbico intenso",
+  AEROBIC_LOW_FOCUS: "Enfoque aeróbico suave",
+  BALANCED: "Equilibrado",
+  ANAEROBIC_SHORTAGE: "Falta anaeróbico",
+  AEROBIC_HIGH_SHORTAGE: "Falta aeróbico intenso",
+  AEROBIC_LOW_SHORTAGE: "Falta aeróbico suave",
+};
+
+function recoveryView(snap: GarminSnapshot) {
+  const hrv = (snap.hrv ?? []).filter((d) => d.ms !== null).sort((a, b) => a.date.localeCompare(b.date));
+  const lastHrv = hrv.at(-1);
+  const hrvStatus = lastHrv?.status ? HRV_ES[lastHrv.status] ?? { label: lastHrv.status.toLowerCase(), ok: true } : null;
+
+  const t = snap.training;
+  const statusKey = t?.status?.replace(/_\d+$/, "") ?? null;
+  const acwr = t?.acwr_status ? ACWR_ES[t.acwr_status] ?? { label: t.acwr_status.toLowerCase(), ok: true } : null;
+
+  const nights = [...snap.sleep].sort((a, b) => a.date.localeCompare(b.date));
+  const withStages = nights.filter((n) => n.deep_h != null || n.rem_h != null);
+  const lastNight = withStages.at(-1);
+
+  return {
+    hrv: lastHrv
+      ? {
+          ms: lastHrv.ms!,
+          weekly: lastHrv.weekly_ms,
+          diff: lastHrv.weekly_ms !== null ? lastHrv.ms! - lastHrv.weekly_ms : null,
+          status: hrvStatus,
+          series: hrv.map((d) => ({ date: d.date, ms: d.ms!, weekly: d.weekly_ms })),
+        }
+      : null,
+    training: t
+      ? {
+          label: statusKey ? TRAINING_ES[statusKey] ?? statusKey : "Sin estado",
+          acute: t.acute_load,
+          chronic: t.chronic_load,
+          ratio: t.ratio,
+          acwr,
+          balance: t.balance ? BALANCE_ES[t.balance] ?? t.balance.toLowerCase().replace(/_/g, " ") : null,
+        }
+      : null,
+    recoveryHours: snap.recovery_hours ?? null,
+    sleep: lastNight
+      ? {
+          date: lastNight.date,
+          total: lastNight.hours,
+          stages: [
+            { key: "deep", label: "Profundo", h: lastNight.deep_h ?? 0 },
+            { key: "light", label: "Ligero", h: lastNight.light_h ?? 0 },
+            { key: "rem", label: "REM", h: lastNight.rem_h ?? 0 },
+            { key: "awake", label: "Despierto", h: lastNight.awake_h ?? 0 },
+          ],
+          week: withStages.slice(-7).map((n) => ({
+            date: n.date,
+            total: n.hours,
+            score: n.score,
+            deep: n.deep_h ?? 0,
+            light: n.light_h ?? 0,
+            rem: n.rem_h ?? 0,
+            awake: n.awake_h ?? 0,
+          })),
+        }
+      : null,
+  };
+}
 
 export function healthView(snap: GarminSnapshot) {
   const ref = snap.today.date;
@@ -225,6 +338,7 @@ export function healthView(snap: GarminSnapshot) {
     },
     weightStats,
     chart,
+    recovery: recoveryView(snap),
     metrics,
     workouts,
     syncedLabel,

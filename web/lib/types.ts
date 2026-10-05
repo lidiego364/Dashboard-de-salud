@@ -40,7 +40,15 @@ export type Reminder = {
   created_at: string;
 };
 
-export type Tables = { tasks: Task; goals: Goal; reminders: Reminder };
+/** Creatina: una fila por día. */
+export type Creatine = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  grams: number;
+  created_at: string;
+};
+
+export type Tables = { tasks: Task; goals: Goal; reminders: Reminder; creatine: Creatine };
 export type TableName = keyof Tables;
 export type NewRow<T extends TableName> = Omit<Tables[T], "id" | "created_at">;
 export type RowPatch<T extends TableName> = Partial<NewRow<T>>;

@@ -1,9 +1,12 @@
 "use client";
 
 import { AreaTasksCard, Card, DemoTag, Loading, PageTitle } from "@/components/Cards";
+import { RecoveryRow } from "@/components/health/Recovery";
+import { CreatineCard } from "@/components/health/Logs";
+import { PhotosCard } from "@/components/health/Photos";
+import { WeightLogButton } from "@/components/health/WeightLog";
 import { useHealth } from "@/components/useHealth";
 import { WeightChart } from "@/components/WeightChart";
-import { DEMO } from "@/lib/demo";
 
 export default function SaludPage() {
   const health = useHealth();
@@ -28,6 +31,7 @@ export default function SaludPage() {
     <>
       <PageTitle title="Salud · Weight cut" sub={h.subtitle}>
         {!live && <DemoTag phase="fase 2" />}
+        <WeightLogButton lastKg={h.chart.points.at(-1)?.kg ?? null} />
       </PageTitle>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 16, marginBottom: 16 }}>
@@ -63,6 +67,8 @@ export default function SaludPage() {
           La tendencia suaviza agua y sodio: el peso de un día puede variar ±0.8 kg; la media de 7 días es la que cuenta.
         </div>
       </Card>
+
+      <RecoveryRow recovery={h.recovery} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 16, marginBottom: 16 }}>
         {h.metrics.map((m) => (
@@ -113,26 +119,9 @@ export default function SaludPage() {
           </div>
         </Card>
         <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+          <CreatineCard />
           <AreaTasksCard area="salud" title="Tareas de salud" compact />
-          <Card style={{ gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <div className="card-title">Fotos de progreso</div>
-              <button className="btn btn-ghost" style={{ marginLeft: "auto", fontSize: 12 }} disabled title="Próximamente">
-                <i className="ph ph-camera" />
-                Añadir
-              </button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-              {DEMO.photos.map((p) => (
-                <div key={p} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ aspectRatio: "3/4", borderRadius: "var(--radius-md)", border: "1px dashed var(--color-neutral-700)", display: "grid", placeItems: "center", color: "var(--color-neutral-600)" }}>
-                    <i className="ph ph-image" style={{ fontSize: 20 }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{p}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
+          <PhotosCard />
         </div>
       </div>
     </>

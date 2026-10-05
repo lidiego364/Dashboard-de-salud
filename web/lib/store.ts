@@ -18,17 +18,17 @@ export function supabaseStore(): Store {
     async list(table) {
       const { data, error } = await db.from(table).select("*").order("created_at");
       if (error) throw error;
-      return (table === "goals" ? data.map(normalizeGoal) : data) as never;
+      return data.map(normalizeNumbers) as never;
     },
     async insert(table, row) {
       const { data, error } = await db.from(table).insert(row).select().single();
       if (error) throw error;
-      return (table === "goals" ? normalizeGoal(data) : data) as never;
+      return normalizeNumbers(data) as never;
     },
     async update(table, id, patch) {
       const { data, error } = await db.from(table).update(patch).eq("id", id).select().single();
       if (error) throw error;
-      return (table === "goals" ? normalizeGoal(data) : data) as never;
+      return normalizeNumbers(data) as never;
     },
     async remove(table, id) {
       const { error } = await db.from(table).delete().eq("id", id);
@@ -64,7 +64,7 @@ export function claudeDbStore(db: Db): Store & { replaceAll(data: Backup): Promi
       await db.doc(`${table}/${id}`).delete();
     },
     async replaceAll(data) {
-      for (const t of ["tasks", "goals", "reminders"] as const) {
+      for (const t of ALL_TABLES) {
         for (const r of await store.list(t)) await store.remove(t, r.id);
         // Una escritura a la vez: el store pide no solapar escrituras.
         for (const r of data[t]) {
@@ -78,8 +78,11 @@ export function claudeDbStore(db: Db): Store & { replaceAll(data: Backup): Promi
 }
 
 // Postgres devuelve numeric como string.
-function normalizeGoal<G extends { progress: unknown }>(g: G) {
-  return { ...g, progress: Number(g.progress) };
+const NUMERIC = ["progress", "grams"];
+function normalizeNumbers<R extends Record<string, unknown>>(r: R): R {
+  const out: Record<string, unknown> = { ...r };
+  for (const k of NUMERIC) if (k in out && out[k] !== null) out[k] = Number(out[k]);
+  return out as R;
 }
 
 export type Backup = { [K in TableName]: Tables[K][] };
@@ -143,6 +146,7 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
 // El objetivo de peso del ejemplo ("Llegar a 85 kg") ahora se calcula con
 // Garmin; se quita solo si sigue idéntico al sembrado (nunca uno del usuario).
 function migrate(db: Backup): Backup {
+  db = { ...db, creatine: db.creatine ?? [] };
   const goals = db.goals.filter((g) => !(g.title === "Llegar a 85 kg" && g.status === "86.8 kg · faltan 1.8"));
   if (goals.length === db.goals.length) return db;
   const next = { ...db, goals };
@@ -152,13 +156,22 @@ function migrate(db: Backup): Backup {
   return next;
 }
 
-/** Valida un respaldo JSON antes de importarlo. */
+export const ALL_TABLES = ["tasks", "goals", "reminders", "creatine"] as const;
+
+/** Valida un respaldo JSON antes de importarlo. Los respaldos viejos no traen
+ *  creatina: se importa vacía. */
 export function parseBackup(text: string): Backup {
   const data = JSON.parse(text);
   for (const t of ["tasks", "goals", "reminders"] as const) {
-    if (!Array.isArray(data?.[t]) || data[t].some((r: unknown) => typeof (r as { id?: unknown })?.id !== "string")) {
-      throw new Error(`El archivo no es un respaldo de Diego OS (falta "${t}").`);
-    }
+    if (!Array.isArray(data?.[t])) throw new Error(`El archivo no es un respaldo de Diego OS (falta "${t}").`);
   }
-  return { tasks: data.tasks, goals: data.goals, reminders: data.reminders };
+  const out = {} as Backup;
+  for (const t of ALL_TABLES) {
+    const rows = data[t] ?? [];
+    if (!Array.isArray(rows) || rows.some((r: unknown) => typeof (r as { id?: unknown })?.id !== "string")) {
+      throw new Error(`El respaldo tiene filas inválidas en "${t}".`);
+    }
+    (out as Record<string, unknown>)[t] = rows;
+  }
+  return out;
 }

@@ -33,7 +33,7 @@ export function exampleRows() {
     { area: "trabajo", title: "Entrevista con Ryder (tentativa)", icon: "ph ph-calendar-check", remind_on: d(10), done_at: null },
     { area: "personal", title: "Cumpleaños de Andrés", icon: "ph ph-gift", remind_on: d(14), done_at: null },
   ];
-  return { tasks, goals, reminders };
+  return { tasks, goals, reminders, creatine: [] as NewRow<"creatine">[] };
 }
 
 export function exampleData() {
@@ -44,5 +44,6 @@ export function exampleData() {
     tasks: rows.tasks.map(withId) as Task[],
     goals: rows.goals.map(withId) as Goal[],
     reminders: rows.reminders.map(withId) as Reminder[],
+    creatine: [],
   };
 }

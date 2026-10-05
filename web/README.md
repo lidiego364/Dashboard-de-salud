@@ -9,7 +9,7 @@ funcionando igual.
 | Fase | Qué | Estado |
 |---|---|---|
 | 1 | Diseño completo, login, tareas/objetivos/recordatorios guardados en Supabase | ✅ |
-| 2 | Salud con datos reales de Garmin (`garmin_sync.py` → Supabase) | pendiente |
+| 2 | Salud completa: Garmin en vivo, "Registrar peso" (escribe en Garmin), recuperación (HRV, estado de entrenamiento, sueño por fases), creatina y fotos de progreso | ✅ (página en claude.ai) |
 | 3 | Universidad: Canvas + subir syllabus/screenshot (Claude extrae deadlines) | pendiente |
 | 4 | Finanzas: PocketSmith o CSV del banco | pendiente |
 | 5 | Calendario de Google y notificaciones | pendiente |
@@ -48,6 +48,11 @@ página privada en claude.ai:
   eventos que son entregas o exámenes: los que no se repiten y traen el curso de Canvas
   entre corchetes (`… [Database Applications]`) o una palabra como exam, quiz, project,
   assignment, lab o entrega. Las clases (eventos que se repiten) no entran.
+- **Salud:** además de lo anterior, "Registrar peso" guarda el pesaje en Garmin
+  (`add_weigh_in`, única escritura de la página, siempre tras confirmar), una fila de
+  Recuperación (HRV de 14 noches vs. media de 7 días, estado de entrenamiento y carga,
+  sueño por fases), creatina (un toque al día, racha) y fotos de progreso (se reducen a
+  JPEG de hasta 1600 px y se guardan en la página).
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

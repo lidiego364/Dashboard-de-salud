@@ -26,8 +26,8 @@ type DataCtx = Rows & {
 
 const Ctx = createContext<DataCtx | null>(null);
 
-const EMPTY: Rows = { tasks: [], goals: [], reminders: [] };
-const TABLES: TableName[] = ["tasks", "goals", "reminders"];
+const EMPTY: Rows = { tasks: [], goals: [], reminders: [], creatine: [] };
+const TABLES: TableName[] = ["tasks", "goals", "reminders", "creatine"];
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<DataCtx["mode"]>(isSupabaseConfigured ? "supabase" : "demo");
@@ -58,8 +58,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const reload = useCallback(async () => {
     if (!store) return;
-    const [tasks, goals, reminders] = await Promise.all(TABLES.map((t) => store.list(t)));
-    setRows({ tasks, goals, reminders } as Rows);
+    const lists = await Promise.all(TABLES.map((t) => store.list(t)));
+    setRows(Object.fromEntries(TABLES.map((t, i) => [t, lists[i]])) as Rows);
   }, [store]);
 
   useEffect(() => {
