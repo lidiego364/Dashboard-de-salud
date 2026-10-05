@@ -1,7 +1,13 @@
-// Reemplazo de next/link para la versión de un solo archivo: rutas con "#".
-import type { AnchorHTMLAttributes } from "react";
-import { toHash } from "./next-navigation";
+// Reemplazo de next/link: cambia de pestaña en memoria (ver next-navigation.ts).
+import type { AnchorHTMLAttributes, MouseEvent } from "react";
+import { navigate, toHash } from "./next-navigation";
 
-export default function Link({ href, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
-  return <a href={toHash(href)} {...rest} />;
+export default function Link({ href, onClick, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
+  const go = (e: MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(e);
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    navigate(href);
+  };
+  return <a href={toHash(href)} onClick={go} {...rest} />;
 }

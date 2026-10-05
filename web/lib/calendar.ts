@@ -56,9 +56,12 @@ export function parseEvents(payload: any): CalEvent[] {
 const DEADLINE_WORDS = /\b(exam\w*|quiz\w*|midterm|final|assignment|homework|hw|project|lab|due|deadline|entrega|examen|parcial|tarea)\b/i;
 
 /** ¿Es una entrega o examen (y no una clase)? Canvas exporta las entregas con el
- *  curso entre corchetes; las clases son eventos que se repiten. */
+ *  curso entre corchetes; las clases son eventos que se repiten. Las horas de
+ *  oficina también traen curso, pero no son entregas. */
+const NOT_DEADLINE = /\b(office\s*hours?|horas?\s+de\s+oficina|review\s+session|tutoring)\b/i;
+
 export function isDeadline(e: CalEvent) {
-  if (e.recurring) return false;
+  if (e.recurring || NOT_DEADLINE.test(e.title)) return false;
   return e.course !== null || DEADLINE_WORDS.test(e.title.replace(/_/g, " "));
 }
 
