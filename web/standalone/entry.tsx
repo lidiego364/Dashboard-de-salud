@@ -11,6 +11,7 @@ import FinanzasPage from "@/app/(app)/finanzas/page";
 import TrabajoPage from "@/app/(app)/trabajo/page";
 import PersonalPage from "@/app/(app)/personal/page";
 import { usePathname } from "next/navigation";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 const PAGES: Record<string, () => React.ReactNode> = {
   "/": HoyPage,
@@ -30,7 +31,9 @@ function App() {
       <div className="app-bg">
         <Header />
         <main style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 64px" }}>
-          <Page />
+          <ErrorBoundary resetKey={path}>
+            <Page />
+          </ErrorBoundary>
         </main>
       </div>
     </DataProvider>

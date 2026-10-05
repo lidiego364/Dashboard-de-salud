@@ -1,13 +1,24 @@
-// Reemplazo de next/link: cambia de pestaña en memoria (ver next-navigation.ts).
-import type { AnchorHTMLAttributes, MouseEvent } from "react";
-import { navigate, toHash } from "./next-navigation";
+// Reemplazo de next/link para la versión de un solo archivo: un BOTÓN, no un
+// enlace. En claude.ai la página vive en un marco y el visor puede interceptar
+// los clics en enlaces antes que nuestro código (y sacar al marco de la página).
+// Un botón cambia la pestaña en memoria sin que nadie lo trate como navegación.
+import type { CSSProperties, ReactNode } from "react";
+import { navigate } from "./next-navigation";
 
-export default function Link({ href, onClick, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
-  const go = (e: MouseEvent<HTMLAnchorElement>) => {
-    onClick?.(e);
-    if (e.defaultPrevented) return;
-    e.preventDefault();
-    navigate(href);
-  };
-  return <a href={toHash(href)} onClick={go} {...rest} />;
+type Props = {
+  href: string;
+  className?: string;
+  style?: CSSProperties;
+  title?: string;
+  children?: ReactNode;
+  "aria-current"?: "page" | undefined;
+  "aria-label"?: string;
+};
+
+export default function Link({ href, className, style, children, ...rest }: Props) {
+  return (
+    <button type="button" className={className} style={{ textAlign: "left", ...style }} onClick={() => navigate(href)} {...rest}>
+      {children}
+    </button>
+  );
 }

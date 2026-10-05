@@ -259,6 +259,7 @@ a:hover { color: var(--color-accent-400); }
 .row:hover .row-edit, .row .row-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .row .row-edit { opacity: .7; } }
 .tab-link {
+  background: none; border: 0; font: inherit; cursor: pointer;
   display: flex; align-items: center; gap: 7px; text-decoration: none;
   font-size: 14px; padding: 9px 12px 11px; white-space: nowrap;
   color: var(--color-neutral-500);
