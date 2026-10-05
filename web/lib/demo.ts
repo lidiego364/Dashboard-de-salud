@@ -68,7 +68,6 @@ export function demoSnapshot(): GarminSnapshot {
   const at = (n: number, time: string) => `${addDays(ref, n)} ${time}`;
   return {
     synced_at: new Date().toISOString(),
-    goal_kg: 85,
     weights: weights.map((kg, i) => ({ date: addDays(ref, i - weights.length + 1), kg })),
     days: steps.map((s, i) => ({ date: addDays(ref, i - steps.length + 1), steps: s, total_kcal: 2900 + (s % 700), active_kcal: 600 + (s % 500), partial: i === steps.length - 1 })),
     sleep: [{ date: ref, hours: 7.08, score: 78, hrv: 88 }],

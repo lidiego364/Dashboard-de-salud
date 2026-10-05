@@ -22,7 +22,6 @@ export function exampleRows() {
   ];
   const goals: NewRow<"goals">[] = [
     { area: "uni", title: "GPA 3.7 este semestre", status: "Promedio actual 3.62", progress: 82 },
-    { area: "salud", title: "Llegar a 85 kg", status: "86.8 kg · faltan 1.8", progress: 64 },
     { area: "trabajo", title: "Internship de data analytics", status: "6 / 20 aplicaciones", progress: 30 },
     { area: "personal", title: "Leer 1 libro al mes", status: "40 / 280 páginas", progress: 14 },
   ];

@@ -1,17 +1,27 @@
 // Salud a partir de una "foto" de Garmin. En la versión de un solo archivo la
 // foto se incrusta como window.__GARMIN__ al generar el HTML; si no hay foto
 // (p. ej. la app Next.js antes de la fase 2) se usan datos de ejemplo.
-import { addDays, dowShort, dayNum, shortDate } from "./dates";
+import { addDays, daysBetween, dowShort, dayNum, shortDate, todayISO, TZ } from "./dates";
 import { demoSnapshot } from "./demo";
+
+/** Meta de peso (se compara contra la tendencia de 7 días, no contra un pesaje suelto). */
+export const HEALTH_GOAL = { kg: 84, by: "2026-10-31" };
 
 export type GarminSnapshot = {
   synced_at: string; // ISO con zona
-  goal_kg: number;
   weights: { date: string; kg: number }[];
   days: { date: string; steps: number; total_kcal: number; active_kcal: number; partial: boolean }[];
   sleep: { date: string; hours: number; score: number; hrv: number | null }[];
   activities: { start: string; type: string; name: string; minutes: number; distance_m: number | null; kcal: number; avg_hr: number | null }[];
-  today: { date: string; steps: number; step_goal: number; resting_hr: number; resting_hr_7d: number; body_battery: number; body_battery_high: number };
+  today: {
+    date: string;
+    steps: number;
+    step_goal: number;
+    resting_hr: number | null;
+    resting_hr_7d: number | null;
+    body_battery: number | null;
+    body_battery_high: number | null;
+  };
 };
 
 declare global {
@@ -68,10 +78,17 @@ export function healthView(snap: GarminSnapshot) {
   const trendNow = trendAt(w, ref);
   const trendWeekAgo = trendAt(w, addDays(ref, -7));
   const weekly = trendNow !== null && trendWeekAgo !== null ? trendNow - trendWeekAgo : null; // negativo = bajando
-  const toGo = trendNow !== null ? trendNow - snap.goal_kg : null;
+  const goal = HEALTH_GOAL;
+  const toGo = trendNow !== null ? trendNow - goal.kg : null;
+  const daysLeft = daysBetween(ref, goal.by);
+  // Ritmo necesario para llegar a tiempo (kg/semana, positivo = hay que bajar).
+  const needed = toGo !== null && toGo > 0 && daysLeft > 0 ? toGo / (daysLeft / 7) : null;
   let eta: string | null = null;
   if (toGo !== null && toGo <= 0) eta = "¡Meta alcanzada!";
   else if (toGo !== null && weekly !== null && weekly < 0) eta = `≈ ${shortDate(addDays(ref, Math.round((toGo / -weekly) * 7)))}`;
+  else if (toGo !== null) eta = "Sin bajar";
+  const onTrack = toGo !== null && (toGo <= 0 || (needed !== null && weekly !== null && -weekly >= needed));
+  const goalTitle = `Llegar a ${goal.kg} kg al ${shortDate(goal.by)}`;
 
   const weightStats = [
     {
@@ -91,10 +108,15 @@ export function healthView(snap: GarminSnapshot) {
       accent: false,
     },
     {
-      label: `Estimado ${snap.goal_kg} kg`,
+      label: `Al ritmo actual llegas a ${goal.kg} kg`,
       value: eta ?? "—",
-      sub: toGo !== null && toGo > 0 ? `Faltan ${fmtKg(toGo)} kg al ritmo actual` : "Con la tendencia de 7 días",
-      accent: false,
+      sub:
+        toGo === null || toGo <= 0
+          ? "Con la tendencia de 7 días"
+          : daysLeft <= 0
+            ? `La fecha meta (${shortDate(goal.by)}) ya pasó · faltan ${fmtKg(toGo)} kg`
+            : `${onTrack ? "Vas a tiempo" : "Para el " + shortDate(goal.by)}: −${needed!.toFixed(2)} kg/sem · ${daysLeft} días`,
+      accent: !onTrack,
     },
   ];
 
@@ -106,7 +128,7 @@ export function healthView(snap: GarminSnapshot) {
     days: 28,
     points,
     trend: points.map((p) => ({ date: p.date, kg: trendAt(w, p.date)! })),
-    goal: snap.goal_kg,
+    goal: goal.kg,
   };
 
   // Métricas del día.
@@ -141,19 +163,19 @@ export function healthView(snap: GarminSnapshot) {
       pct: kcal7 ? Math.min(100, (todayStats.total_kcal / kcal7) * 100) : null,
       sub: `${fmtInt(todayStats.active_kcal)} activas${todayStats.partial ? " · día en curso" : ""}${kcal7 ? ` · media ${fmtInt(kcal7)}` : ""}`,
     },
-    {
+    snap.today.resting_hr !== null && {
       icon: "ph ph-heartbeat",
       label: "FC en reposo",
       value: `${snap.today.resting_hr} ppm`,
       pct: null,
-      sub: `Media 7 días ${snap.today.resting_hr_7d} ppm`,
+      sub: snap.today.resting_hr_7d !== null ? `Media 7 días ${snap.today.resting_hr_7d} ppm` : "Hoy",
     },
-    {
+    snap.today.body_battery !== null && {
       icon: "ph ph-battery-high",
       label: "Body Battery",
       value: String(snap.today.body_battery),
       pct: snap.today.body_battery,
-      sub: `Máximo hoy ${snap.today.body_battery_high}`,
+      sub: snap.today.body_battery_high !== null ? `Máximo hoy ${snap.today.body_battery_high}` : "Ahora",
     },
     {
       icon: "ph ph-barbell",
@@ -180,12 +202,27 @@ export function healthView(snap: GarminSnapshot) {
     });
 
   const synced = new Date(snap.synced_at);
-  const syncedLabel = `${shortDate(snap.synced_at.slice(0, 10))} ${synced.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })}`;
+  const syncedLabel = `${shortDate(todayISO(synced))} ${synced.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: TZ })}`;
 
   return {
     subtitle: first
-      ? `Meta ${snap.goal_kg} kg · empezaste en ${fmtKg(first.kg)} kg el ${shortDate(first.date)}${last ? ` · llevas ${signed(last.kg - first.kg)} kg` : ""}`
-      : `Meta ${snap.goal_kg} kg`,
+      ? `Meta ${goal.kg} kg al ${shortDate(goal.by)} · empezaste en ${fmtKg(first.kg)} kg el ${shortDate(first.date)}${last ? ` · llevas ${signed(last.kg - first.kg)} kg` : ""}`
+      : `Meta ${goal.kg} kg al ${shortDate(goal.by)}`,
+    // Objetivo calculado para la tarjeta "Objetivos" (progreso desde el primer pesaje).
+    goal: {
+      title: goalTitle,
+      status:
+        trendNow === null
+          ? "Sin pesajes"
+          : toGo! <= 0
+            ? `${fmtKg(trendNow)} kg · ¡logrado!`
+            : `${fmtKg(trendNow)} kg · faltan ${fmtKg(toGo!)}${daysLeft > 0 ? ` · ${daysLeft} días` : ""}`,
+      progress:
+        first && trendNow !== null && first.kg > goal.kg
+          ? Math.max(0, Math.min(100, ((first.kg - trendNow) / (first.kg - goal.kg)) * 100))
+          : 0,
+      onTrack,
+    },
     weightStats,
     chart,
     metrics,

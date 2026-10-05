@@ -20,13 +20,22 @@ function AreaSelect({ value, onChange }: { value: Area; onChange: (a: Area) => v
 
 const orNull = (s: string) => (s.trim() ? s.trim() : null);
 
+// Confirmación dentro de la página (en claude.ai el navegador no muestra confirm()).
 function DeleteButton({ onClick }: { onClick: () => void }) {
+  const [asking, setAsking] = useState(false);
+  if (asking)
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <button type="button" className="btn btn-secondary btn-danger" onClick={onClick}>
+          Sí, eliminar
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setAsking(false)}>
+          No
+        </button>
+      </span>
+    );
   return (
-    <button
-      type="button"
-      className="btn btn-ghost btn-danger"
-      onClick={() => confirm("¿Eliminar definitivamente?") && onClick()}
-    >
+    <button type="button" className="btn btn-ghost btn-danger" onClick={() => setAsking(true)}>
       <i className="ph ph-trash" /> Eliminar
     </button>
   );

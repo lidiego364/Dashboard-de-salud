@@ -2,6 +2,7 @@ import type { NewRow, RowPatch, TableName, Tables } from "./types";
 import { getBrowserClient } from "./supabase/client";
 import { exampleData } from "./example-data";
 import { newId } from "./id";
+import type { Db } from "./claude-runtime";
 
 export interface Store {
   list<T extends TableName>(table: T): Promise<Tables[T][]>;
@@ -36,6 +37,46 @@ export function supabaseStore(): Store {
   };
 }
 
+/** Página publicada en claude.ai: base de datos de la propia página, la misma
+ *  en el celular y en la compu. Un documento por fila: tasks/<id>, etc. */
+export function claudeDbStore(db: Db): Store & { replaceAll(data: Backup): Promise<void> } {
+  const strip = <T,>(d: { id: string; data(): Record<string, unknown> | undefined }) => ({ ...(d.data() ?? {}), id: d.id }) as T;
+  const store: Store & { replaceAll(data: Backup): Promise<void> } = {
+    async list(table) {
+      const { docs } = await db.collection(table).get();
+      return docs
+        .filter((d) => d.exists)
+        .map((d) => strip(d))
+        .sort((a, b) => String((a as { created_at?: string }).created_at).localeCompare(String((b as { created_at?: string }).created_at))) as never;
+    },
+    async insert(table, row) {
+      const id = newId();
+      const full = { ...row, created_at: new Date().toISOString() };
+      await db.doc(`${table}/${id}`).set(full as Record<string, unknown>);
+      return { ...full, id } as never;
+    },
+    async update(table, id, patch) {
+      const ref = db.doc(`${table}/${id}`);
+      await ref.update(patch as Record<string, unknown>);
+      return strip(await ref.get()) as never;
+    },
+    async remove(table, id) {
+      await db.doc(`${table}/${id}`).delete();
+    },
+    async replaceAll(data) {
+      for (const t of ["tasks", "goals", "reminders"] as const) {
+        for (const r of await store.list(t)) await store.remove(t, r.id);
+        // Una escritura a la vez: el store pide no solapar escrituras.
+        for (const r of data[t]) {
+          const { id, ...rest } = r as { id: string };
+          await db.doc(`${t}/${id}`).set(rest);
+        }
+      }
+    },
+  };
+  return store;
+}
+
 // Postgres devuelve numeric como string.
 function normalizeGoal<G extends { progress: unknown }>(g: G) {
   return { ...g, progress: Number(g.progress) };
@@ -54,7 +95,7 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
     if (mem) return mem;
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return (mem = JSON.parse(raw) as Backup);
+      if (raw) return (mem = migrate(JSON.parse(raw) as Backup));
     } catch {}
     const seeded = exampleData();
     write(seeded);
@@ -97,6 +138,18 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
       write(structuredClone(db));
     },
   };
+}
+
+// El objetivo de peso del ejemplo ("Llegar a 85 kg") ahora se calcula con
+// Garmin; se quita solo si sigue idéntico al sembrado (nunca uno del usuario).
+function migrate(db: Backup): Backup {
+  const goals = db.goals.filter((g) => !(g.title === "Llegar a 85 kg" && g.status === "86.8 kg · faltan 1.8"));
+  if (goals.length === db.goals.length) return db;
+  const next = { ...db, goals };
+  try {
+    localStorage.setItem("diego-os:v1", JSON.stringify(next));
+  } catch {}
+  return next;
 }
 
 /** Valida un respaldo JSON antes de importarlo. */

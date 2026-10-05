@@ -24,7 +24,7 @@ export default function HoyPage() {
   const groups = AREA_KEYS.map((a) => ({ area: a, ...AREAS[a], tasks: todays.filter((t) => t.area === a) })).filter((g) => g.tasks.length);
   const deadlines = upcomingDeadlines(tasks, today);
   const week = weekAhead(tasks, reminders, today);
-  const empty = !tasks.length && mode === "supabase";
+  const empty = !tasks.length && mode !== "demo";
 
   const summary = [
     pending === 0 ? "Nada pendiente hoy" : `${pending} ${pending === 1 ? "tarea pendiente" : "tareas pendientes"} hoy`,
@@ -219,17 +219,23 @@ export default function HoyPage() {
               <KickerRow kicker="Salud">
                 {health.live ? (
                   <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Garmin · {health.view.syncedLabel}</span>
+                ) : health.loading ? (
+                  <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Leyendo Garmin…</span>
                 ) : (
-                  <DemoTag phase="fase 2" />
+                  !health.unavailable && <DemoTag phase="fase 2" />
                 )}
                 <GoToButton href="/salud" label="Detalle" />
               </KickerRow>
+              {health.unavailable ? (
+                <div className="empty">{health.error}</div>
+              ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
                 <Stat label="Peso" value={health.view.hoy.weight} unit="kg" big />
                 <Stat label="Tendencia 7 días" value={health.view.hoy.trend} unit="kg" big accent />
                 <Stat label="Pasos hoy" value={health.view.hoy.steps} unit={`/ ${health.view.hoy.stepGoal}`} />
                 <Stat label="Sueño anoche" value={health.view.hoy.sleep} />
               </div>
+              )}
             </Card>
 
             <GoalsCard />

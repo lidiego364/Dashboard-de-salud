@@ -7,6 +7,7 @@ import { GoalDialog, ReminderDialog, TaskDialog } from "./forms";
 import { AddButton, GoalItem, ReminderItem, TaskItem } from "./items";
 import { areaTasks, upcomingReminders } from "@/lib/selectors";
 import { AREAS, type Area } from "@/lib/types";
+import { useHealth } from "./useHealth";
 
 export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -43,17 +44,31 @@ export function GoToButton({ href, label }: { href: string; label: string }) {
 
 export function GoalsCard({ area, kicker = "Objetivos actuales" }: { area?: Area; kicker?: string }) {
   const { goals } = useData();
+  const health = useHealth();
   const [adding, setAdding] = useState(false);
   const list = goals.filter((g) => !area || g.area === area);
+  const hg = health && !health.unavailable && (!area || area === "salud") ? health.view.goal : null;
   return (
     <Card style={{ gap: 12 }}>
       <KickerRow kicker={kicker}>
         <AddButton label="Objetivo" onClick={() => setAdding(true)} />
       </KickerRow>
+      {hg && (
+        <Link href="/salud" className="row-btn" style={{ flexDirection: "column", alignItems: "stretch", gap: 5, textDecoration: "none" }} title="Se calcula solo con tus pesajes de Garmin">
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14 }}>{hg.title}</span>
+            <i className="ph ph-watch" style={{ fontSize: 13, color: "var(--color-neutral-500)" }} />
+            <span style={{ marginLeft: "auto", fontSize: 12, color: hg.onTrack ? "var(--color-neutral-400)" : "var(--color-accent-300)" }}>{hg.status}</span>
+          </span>
+          <span style={{ height: 4, borderRadius: 2, background: "var(--color-neutral-800)", overflow: "hidden" }}>
+            <span style={{ display: "block", height: "100%", width: `${hg.progress}%`, background: "var(--color-accent-500)" }} />
+          </span>
+        </Link>
+      )}
       {list.map((g) => (
         <GoalItem key={g.id} goal={g} />
       ))}
-      {!list.length && <div className="empty">Sin objetivos todavía.</div>}
+      {!list.length && !hg && <div className="empty">Sin objetivos todavía.</div>}
       {adding && <GoalDialog defaultArea={area} onClose={() => setAdding(false)} />}
     </Card>
   );

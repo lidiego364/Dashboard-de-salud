@@ -33,6 +33,21 @@ sin Supabase y sin instalar nada. Ábrelo con doble clic en el navegador.
   `.gitignore`: **nunca se suben al repo** porque son datos de salud personales.
   El formato está en `lib/health.ts` (`GarminSnapshot`).
 
+## Página privada en claude.ai (se actualiza sola)
+
+`npm run standalone` también genera `diego-os.page.html`, la versión para publicar como
+página privada en claude.ai:
+
+- **Garmin en vivo:** al abrirla, lee tus datos con tu propio conector "Garmin
+  connection" (5 herramientas de solo lectura: resumen del día, pesajes, pasos/calorías,
+  actividades y sueño). No guarda ninguna foto dentro del archivo.
+- **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
+  la página, así que se ven igual en el celular y en la compu.
+- Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no
+  muestra números de ejemplo como si fueran tuyos.
+- La meta de peso está en `lib/health.ts` (`HEALTH_GOAL`) y se compara contra la
+  tendencia de 7 días.
+
 ## Probar en local
 
 ```bash

@@ -61,6 +61,10 @@ const garmin = existsSync(snapPath)
 
 const icon = readFileSync(resolve(web, "app/icon.svg"), "utf8");
 
+const script = `<script>${js.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script>`;
+const iconLink = `<link rel="icon" href="data:image/svg+xml;base64,${Buffer.from(icon).toString("base64")}">`;
+
+// 1) Archivo local (se abre con doble clic): documento completo + foto de Garmin.
 const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -68,15 +72,24 @@ const html = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#f4f4f2">
 <title>Diego OS</title>
-<link rel="icon" href="data:image/svg+xml;base64,${Buffer.from(icon).toString("base64")}">
+${iconLink}
 <style>${css}</style>
 </head>
 <body>
 <div id="root"></div>
-${garmin}<script>${js.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script>
+${garmin}${script}
 </body>
 </html>
 `;
+
+// 2) Página para claude.ai: sin <html>/<head>/<body> (claude.ai pone el esqueleto),
+//    <title> y <style> primero, y SIN foto incrustada: lee Garmin en vivo.
+const page = `<title>Diego OS</title>
+<style>${css}</style>
+<div id="root"></div>
+${script}
+`;
+writeFileSync(resolve(web, "..", "diego-os.page.html"), page);
 
 writeFileSync(out, html);
 console.log(`${out} · ${(html.length / 1024).toFixed(0)} KB · Garmin: ${garmin ? "incluido" : "datos de ejemplo"}`);

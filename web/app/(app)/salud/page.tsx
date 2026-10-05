@@ -7,7 +7,21 @@ import { DEMO } from "@/lib/demo";
 
 export default function SaludPage() {
   const health = useHealth();
-  if (!health) return <Loading />;
+  if (!health || (health.source === "demo" && health.loading)) return <Loading />;
+  if (health.unavailable)
+    return (
+      <>
+        <PageTitle title="Salud · Weight cut" />
+        <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <i className="ph ph-watch" style={{ fontSize: 22, color: "var(--color-accent)" }} />
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 15 }}>No pude leer tus datos de Garmin</div>
+            <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{health.error}</div>
+          </div>
+        </Card>
+        <AreaTasksCard area="salud" title="Tareas de salud" />
+      </>
+    );
   const { view: h, live } = health;
 
   return (

@@ -1,15 +1,17 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { exampleRows } from "@/lib/example-data";
-import { localStore, parseBackup, supabaseStore, type Backup, type Store } from "@/lib/store";
+import { claudeDbStore, localStore, parseBackup, supabaseStore, type Backup, type Store } from "@/lib/store";
+import { inClaude, getCapability } from "@/lib/claude-runtime";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { NewRow, RowPatch, TableName, Tables } from "@/lib/types";
 
 type Rows = { [K in TableName]: Tables[K][] };
 
 type DataCtx = Rows & {
-  mode: "demo" | "supabase";
+  /** demo: navegador sin Supabase · supabase: app en la nube · claude: página en claude.ai (sincronizada) */
+  mode: "demo" | "supabase" | "claude";
   loading: boolean;
   error: string | null;
   clearError: () => void;
@@ -28,30 +30,50 @@ const EMPTY: Rows = { tasks: [], goals: [], reminders: [] };
 const TABLES: TableName[] = ["tasks", "goals", "reminders"];
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const mode = isSupabaseConfigured ? "supabase" : "demo";
-  const local = useMemo(() => (mode === "supabase" ? null : localStore()), [mode]);
-  const store = useMemo<Store>(() => local ?? supabaseStore(), [local]);
+  const [mode, setMode] = useState<DataCtx["mode"]>(isSupabaseConfigured ? "supabase" : "demo");
+  const [store, setStore] = useState<(Store & { replaceAll?(data: Backup): Promise<void> }) | null>(null);
   const [rows, setRows] = useState<Rows>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  const fail = (e: unknown) =>
+    setError(e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e));
+
+  // Elige dónde guardar: Supabase, la base de datos de la página en claude.ai, o el navegador.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (isSupabaseConfigured) return setStore(supabaseStore());
+      const db = inClaude() ? await getCapability("db") : null;
+      if (cancelled) return;
+      if (db) {
+        setMode("claude");
+        setStore(claudeDbStore(db));
+      } else setStore(localStore());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const reload = useCallback(async () => {
+    if (!store) return;
     const [tasks, goals, reminders] = await Promise.all(TABLES.map((t) => store.list(t)));
     setRows({ tasks, goals, reminders } as Rows);
   }, [store]);
 
   useEffect(() => {
+    if (!store) return;
     reload()
       .catch(fail)
       .finally(() => setLoading(false));
-  }, [reload]);
+  }, [store, reload]);
 
   const setTable = <T extends TableName>(table: T, fn: (list: Tables[T][]) => Tables[T][]) =>
     setRows((r) => ({ ...r, [table]: fn(r[table] as Tables[T][]) }));
 
   const create: DataCtx["create"] = async (table, row) => {
+    if (!store) return;
     try {
       const saved = await store.insert(table, row);
       setTable(table, (l) => [...l, saved]);
@@ -62,6 +84,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // Optimista: se aplica al instante y se revierte si el servidor falla.
   const patch: DataCtx["patch"] = async (table, id, p) => {
+    if (!store) return;
     const before = rows[table];
     setTable(table, (l) => l.map((r) => (r.id === id ? { ...r, ...p } : r)));
     try {
@@ -74,6 +97,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   const remove: DataCtx["remove"] = async (table, id) => {
+    if (!store) return;
     const before = rows[table];
     setTable(table, (l) => l.filter((r) => r.id !== id));
     try {
@@ -85,6 +109,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loadExample = async () => {
+    if (!store) return;
     const ex = exampleRows();
     try {
       for (const t of TABLES) for (const row of ex[t]) await store.insert(t, row as never);
@@ -98,11 +123,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const importBackup = async (json: string) => {
     try {
-      if (!local) throw new Error("Importar solo está disponible en la versión local.");
-      await local.replaceAll(parseBackup(json));
+      if (!store?.replaceAll) throw new Error("Importar no está disponible en esta versión.");
+      setLoading(true);
+      await store.replaceAll(parseBackup(json));
       await reload();
     } catch (e) {
       fail(e);
+    } finally {
+      setLoading(false);
     }
   };
 
