@@ -12,10 +12,11 @@ import { DEMO } from "@/lib/demo";
 import { useHealth } from "@/components/useHealth";
 import { useCalendar } from "@/components/useCalendar";
 import { DeadlineList } from "@/components/DeadlineList";
+import { withWeights } from "@/lib/uni";
 import { CreatineToday } from "@/components/health/Logs";
 
 export default function HoyPage() {
-  const { tasks, reminders, loading, mode, loadExample } = useData();
+  const { tasks, reminders, courses, assignment_meta, loading, mode, loadExample } = useData();
   const [adding, setAdding] = useState<{ date: string | null } | null>(null);
   const health = useHealth();
   const cal = useCalendar();
@@ -30,7 +31,8 @@ export default function HoyPage() {
   const agenda = cal.events.filter((e) => e.date === today).sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const now = nowHM();
   const nextEvent = agenda.find((e) => e.time && (e.endTime ?? e.time) > now);
-  const deadlines = upcomingDeadlines(tasks, today, 5, cal.events, now);
+  // % de la nota según los syllabus; las marcadas como hechas en Universidad no aparecen.
+  const deadlines = withWeights(upcomingDeadlines(tasks, today, 200, cal.events, now), courses, assignment_meta).slice(0, 5);
   const empty = !tasks.length && mode !== "demo";
 
   const summary = [

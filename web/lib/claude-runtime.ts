@@ -22,7 +22,13 @@ export type Db = {
 };
 export type Downloads = { save(req: { filename: string; data: string }): Promise<unknown> };
 
-type Caps = { mcp: Mcp; db: Db; downloads: Downloads };
+export type SampleOptions = { signal?: AbortSignal; images?: Blob[]; modelTier?: "quick" | "default" | "complex"; cache?: boolean };
+export type Sample = {
+  json<T = unknown>(input: string, options?: SampleOptions): Promise<T>;
+  limits(): Promise<{ images?: { maxCount: number; mediaTypes: string[] } }>;
+};
+
+type Caps = { mcp: Mcp; db: Db; downloads: Downloads; sample: Sample };
 type ClaudeGlobal = { use<K extends keyof Caps>(name: K): Promise<Caps[K] | null> };
 
 export function inClaude(): boolean {
@@ -81,5 +87,27 @@ export async function readTool(mcp: Mcp, server: string, tool: string, input: un
       return readTool(mcp, server, tool, input, staleMs, true);
     }
     throw e;
+  }
+}
+
+/** Mensaje claro según el código de error al pedirle algo a Claude desde la página. */
+export function explainSampleError(e: unknown): string | null {
+  const code = (e as { code?: string })?.code;
+  switch (code) {
+    case "cancelled":
+      return null;
+    case "not_granted":
+      return "Diste que no al permiso para que la página use Claude. Recarga la página y acéptalo para leer syllabus.";
+    case "rate_limited":
+      return "Claude está ocupado con otras consultas. Espera un minuto y vuelve a intentar.";
+    case "prompt_too_large":
+      return "El syllabus es demasiado largo. Sube solo la parte de evaluación (Grading / Evaluation).";
+    case "invalid_json":
+      return "Claude no respondió en el formato esperado. Vuelve a intentar.";
+    case "images_unavailable":
+    case "image_rejected":
+      return "Esta vista no acepta imágenes. Sube el syllabus en PDF o pega el texto.";
+    default:
+      return `No se pudo leer con Claude${(e as Error)?.message ? `: ${(e as Error).message}` : "."}`;
   }
 }

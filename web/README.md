@@ -10,7 +10,7 @@ funcionando igual.
 |---|---|---|
 | 1 | Diseño completo, login, tareas/objetivos/recordatorios guardados en Supabase | ✅ |
 | 2 | Salud: tendencia del peso (Garmin en vivo) y creatina. Lo demás de Garmin se ve en su app. | ✅ (página en claude.ai) |
-| 3 | Universidad: Canvas + subir syllabus/screenshot (Claude extrae deadlines) | pendiente |
+| 3 | Universidad: syllabus → % de cada entrega (Claude), "Qué hacer primero" por % ÷ días, plan de estudio, cursos y checklist | ✅ (página en claude.ai) |
 | 4 | Finanzas: PocketSmith o CSV del banco | pendiente |
 | 5 | Calendario de Google y notificaciones | pendiente |
 
@@ -50,6 +50,14 @@ página privada en claude.ai:
   assignment, lab o entrega. Las clases (eventos que se repiten) no entran.
 - **Salud:** solo la tendencia del peso (meta, ritmo, gráfico de 28 días) y la
   creatina (un toque al día, racha). Sueño, pasos y entrenamientos se ven en Garmin.
+- **Universidad:** subes el syllabus de cada curso (PDF, captura o texto); la página
+  extrae el texto del PDF con pdf.js (cdnjs, cargado solo al subir) y le pide a Claude
+  (capacidad `sample`, la paga tu plan y pide permiso la primera vez) las partes de la
+  nota con su % y las palabras con las que aparecen en Canvas. Lo revisas antes de
+  guardar. Con eso cada entrega del calendario sabe cuánto vale (`lib/uni.ts`):
+  "Qué hacer primero" ordena por % ÷ días, "What should I study today?" reparte el
+  tiempo estimado entre los días que faltan, y Deadlines FIU muestra el %. "Armar
+  checklist con Claude" y "Hecho" se guardan por entrega (`assignment_meta`).
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

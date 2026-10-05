@@ -48,7 +48,45 @@ export type Creatine = {
   created_at: string;
 };
 
-export type Tables = { tasks: Task; goals: Goal; reminders: Reminder; creatine: Creatine };
+/** Parte de la nota de un curso (sale del syllabus): "Quizzes · 20% · 10 quizzes". */
+export type GradeComponent = {
+  name: string;
+  weight_pct: number;
+  /** Cuántas entregas reparten ese %, si el syllabus lo dice. */
+  count: number | null;
+  /** Palabras que identifican sus entregas en el calendario ("quiz", "exam"…). */
+  keywords: string[];
+};
+
+export type Course = {
+  id: string;
+  code: string; // "ISM 4210"
+  name: string; // "Database Applications"
+  /** Nombre del curso tal como Canvas lo pone entre corchetes en el calendario. */
+  calendar_name: string | null;
+  components: GradeComponent[];
+  grade: string | null; // lo anota Diego: "A− · 91%"
+  created_at: string;
+};
+
+/** Lo que Diego agrega a una entrega (de Calendar o una tarea): hecha, checklist, tiempo. */
+export type AssignmentMeta = {
+  id: string;
+  key: string; // "cal:<id de Google>" o "task:<id>"
+  done_at: string | null;
+  checklist: { label: string; done: boolean }[] | null;
+  minutes: number | null; // tiempo total estimado
+  created_at: string;
+};
+
+export type Tables = {
+  tasks: Task;
+  goals: Goal;
+  reminders: Reminder;
+  creatine: Creatine;
+  courses: Course;
+  assignment_meta: AssignmentMeta;
+};
 export type TableName = keyof Tables;
 export type NewRow<T extends TableName> = Omit<Tables[T], "id" | "created_at">;
 export type RowPatch<T extends TableName> = Partial<NewRow<T>>;

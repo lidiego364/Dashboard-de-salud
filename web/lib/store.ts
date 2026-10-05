@@ -146,7 +146,7 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
 // El objetivo de peso del ejemplo ("Llegar a 85 kg") ahora se calcula con
 // Garmin; se quita solo si sigue idéntico al sembrado (nunca uno del usuario).
 function migrate(db: Backup): Backup {
-  db = { ...db, creatine: db.creatine ?? [] };
+  db = { ...db, creatine: db.creatine ?? [], courses: db.courses ?? [], assignment_meta: db.assignment_meta ?? [] };
   const goals = db.goals.filter((g) => !(g.title === "Llegar a 85 kg" && g.status === "86.8 kg · faltan 1.8"));
   if (goals.length === db.goals.length) return db;
   const next = { ...db, goals };
@@ -156,10 +156,10 @@ function migrate(db: Backup): Backup {
   return next;
 }
 
-export const ALL_TABLES = ["tasks", "goals", "reminders", "creatine"] as const;
+export const ALL_TABLES = ["tasks", "goals", "reminders", "creatine", "courses", "assignment_meta"] as const;
 
-/** Valida un respaldo JSON antes de importarlo. Los respaldos viejos no traen
- *  creatina: se importa vacía. */
+/** Valida un respaldo JSON antes de importarlo. Las tablas que un respaldo viejo
+ *  no trae (creatina, cursos…) se importan vacías. */
 export function parseBackup(text: string): Backup {
   const data = JSON.parse(text);
   for (const t of ["tasks", "goals", "reminders"] as const) {

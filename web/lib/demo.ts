@@ -1,31 +1,10 @@
-// Datos estáticos del prototipo para las secciones que todavía no tienen
-// fuente real: Universidad (Canvas, fase 3), Salud (Garmin, cuando no hay
-// foto incrustada) y Finanzas (PocketSmith/CSV, fase 4).
+// Datos estáticos del prototipo para lo que todavía no tiene fuente real:
+// Finanzas (fase 4) y Salud cuando no hay foto de Garmin.
 import { addDays, todayISO } from "./dates";
 import type { GarminSnapshot } from "./health";
 
 export const DEMO = {
   budget: { month: "octubre", total: 1800, spent: 286, perDay: 56 },
-
-  assignments: [
-    { id: "a1", title: "SQL Lab 3 · Joins", course: "ISM 4212", days: 1, weight: 5, time: "2h", checklist: ["Leer instrucciones en Canvas", "INNER y LEFT JOIN (ej. 1–4)", "Subqueries (ej. 5–6)", "Exportar .sql y subir"] },
-    { id: "a2", title: "Tableau Dashboard Project", course: "ISM 4402", days: 3, weight: 15, time: "5h", checklist: ["Limpiar dataset en Tableau Prep", "3 visualizaciones + 1 KPI", "Armar dashboard con filtros", "Story de 4 puntos", "Publicar en Tableau Public"] },
-    { id: "a3", title: "Midterm · Estadística", course: "QMB 3200", days: 9, weight: 25, time: "8h estudio", checklist: ["Caps. 4–7 resumen", "Practice exam 1", "Practice exam 2", "Hoja de fórmulas"] },
-    { id: "a4", title: "Case study write-up", course: "ISM 3232", days: 6, weight: 10, time: "3h", checklist: ["Leer caso", "Análisis en Excel", "Escribir 2 páginas"] },
-    { id: "a5", title: "Discussion post semana 7", course: "ISM 3232", days: 5, weight: 2, time: "30 min", checklist: ["Post inicial", "Responder a 2 compañeros"] },
-  ],
-  study: [
-    { mins: "60 min", subject: "SQL · joins y subqueries", why: "Lab 3 vence mañana (5% de la nota)" },
-    { mins: "45 min", subject: "Estadística · cap. 6", why: "Midterm en 9 días (25%) · empezar ya rinde más" },
-    { mins: "30 min", subject: "Tableau · limpiar dataset", why: "Project en 3 días (15%)" },
-  ],
-  courses: [
-    { code: "ISM 4212", name: "Database Management", grade: "A− · 91%" },
-    { code: "ISM 4402", name: "Business Intelligence", grade: "A · 94%" },
-    { code: "QMB 3200", name: "Business Statistics", grade: "B+ · 87%" },
-    { code: "ISM 3232", name: "Business Analytics", grade: "A− · 90%" },
-  ],
-
 
   insights: [
     { icon: "ph ph-trend-up", text: "Este mes llevas $312 más que el mes pasado.", sub: "Septiembre $1,550 vs agosto $1,238" },

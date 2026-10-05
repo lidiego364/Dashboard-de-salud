@@ -72,6 +72,8 @@ export function weekAhead(tasks: Task[], reminders: Reminder[], today: string, c
 export type Deadline = {
   key: string;
   title: string;
+  /** Curso tal como viene: el nombre entre corchetes de Canvas (calendario) o null. */
+  course: string | null;
   meta: string | null;
   date: string;
   time: string | null;
@@ -88,6 +90,7 @@ export function upcomingDeadlines(tasks: Task[], today: string, n = 5, calendar:
     .map((t) => ({
       key: `task:${t.id}`,
       title: t.title,
+      course: null,
       meta: t.meta,
       date: t.due_date!,
       time: t.due_time ? t.due_time.slice(0, 5) : null,
@@ -106,6 +109,7 @@ export function upcomingDeadlines(tasks: Task[], today: string, n = 5, calendar:
     .map((e) => ({
       key: `cal:${e.sourceId}`,
       title: e.title,
+      course: e.course,
       meta: [e.course, e.time && `${e.time}${e.endTime ? `–${e.endTime}` : ""}`].filter(Boolean).join(" · ") || null,
       date: e.date,
       time: e.time,

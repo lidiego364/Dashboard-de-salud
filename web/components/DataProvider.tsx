@@ -26,8 +26,8 @@ type DataCtx = Rows & {
 
 const Ctx = createContext<DataCtx | null>(null);
 
-const EMPTY: Rows = { tasks: [], goals: [], reminders: [], creatine: [] };
-const TABLES: TableName[] = ["tasks", "goals", "reminders", "creatine"];
+const EMPTY: Rows = { tasks: [], goals: [], reminders: [], creatine: [], courses: [], assignment_meta: [] };
+const TABLES: TableName[] = ["tasks", "goals", "reminders", "creatine", "courses", "assignment_meta"];
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<DataCtx["mode"]>(isSupabaseConfigured ? "supabase" : "demo");

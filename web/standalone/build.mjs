@@ -16,6 +16,10 @@ const js = await build({
   write: false,
   format: "iife",
   target: "es2020",
+  // Solo ASCII (acentos como \uXXXX): si alguien decodifica la página con otra
+  // codificación, el JS sigue siendo válido (un regex con rangos Unicode literales
+  // se rompía y la página no arrancaba).
+  charset: "ascii",
   jsx: "automatic",
   tsconfig: resolve(web, "tsconfig.json"),
   alias: {
@@ -60,6 +64,11 @@ const garmin = existsSync(snapPath)
   : "";
 
 const icon = readFileSync(resolve(web, "app/icon.svg"), "utf8");
+
+// Guardia: el JS debe ser solo ASCII (ver charset arriba). esbuild no escapa los
+// regex literales, así que un acento crudo en un regex rompería la página.
+const nonAscii = [...js.outputFiles[0].text].filter((c) => c.charCodeAt(0) > 127);
+if (nonAscii.length) throw new Error(`El JS tiene ${nonAscii.length} caracteres no-ASCII (probablemente en un regex): ${[...new Set(nonAscii)].join(" ")}`);
 
 const script = `<script>${js.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script>`;
 const iconLink = `<link rel="icon" href="data:image/svg+xml;base64,${Buffer.from(icon).toString("base64")}">`;
