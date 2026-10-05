@@ -2,7 +2,6 @@
 // pantalla en blanco (React desmonta todo ante un error no atrapado).
 import { Component, type ReactNode } from "react";
 import { navigate } from "./next-navigation";
-import { diag } from "./diag";
 
 type State = { error: Error | null };
 
@@ -11,10 +10,6 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: st
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
-  }
-
-  componentDidCatch(error: Error) {
-    void diag("render-error", `${error.name}: ${error.message} | ${(error.stack ?? "").split("\n").slice(1, 3).join(" ")}`);
   }
 
   componentDidUpdate(prev: { resetKey: string }) {
