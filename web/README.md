@@ -44,6 +44,10 @@ página privada en claude.ai:
 - **Google Calendar en vivo:** lee tus eventos de los próximos 7 días con el conector
   "Google Calendar" (solo `list_events`, lectura). Aparecen en "Esta semana", en la tarjeta
   "Hoy en tu calendario" y en el resumen de arriba; cada evento abre en Google Calendar.
+  Lee 3 semanas y manda a **Deadlines FIU** (y a "Próximas entregas" en Universidad) los
+  eventos que son entregas o exámenes: los que no se repiten y traen el curso de Canvas
+  entre corchetes (`… [Database Applications]`) o una palabra como exam, quiz, project,
+  assignment, lab o entrega. Las clases (eventos que se repiten) no entran.
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

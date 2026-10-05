@@ -5,12 +5,13 @@ import { useData } from "@/components/DataProvider";
 import { TaskDialog } from "@/components/forms";
 import { AddButton, TaskItem } from "@/components/items";
 import { Card, Columns, DemoTag, GoalsCard, GoToButton, KickerRow, Loading, RemindersCard } from "@/components/Cards";
-import { dayNum, dowShort, greeting, nowHM, monShort, relativeDays, shortDate, todayISO } from "@/lib/dates";
+import { dayNum, dowShort, greeting, nowHM, relativeDays, shortDate, todayISO } from "@/lib/dates";
 import { tasksForToday, upcomingDeadlines, weekAhead } from "@/lib/selectors";
 import { AREA_KEYS, AREAS, type Area } from "@/lib/types";
 import { DEMO } from "@/lib/demo";
 import { useHealth } from "@/components/useHealth";
 import { useCalendar } from "@/components/useCalendar";
+import { DeadlineList } from "@/components/DeadlineList";
 
 export default function HoyPage() {
   const { tasks, reminders, loading, mode, loadExample } = useData();
@@ -24,11 +25,11 @@ export default function HoyPage() {
   const doneCount = todays.filter((t) => t.done_at).length;
   const pending = todays.length - doneCount;
   const groups = AREA_KEYS.map((a) => ({ area: a, ...AREAS[a], tasks: todays.filter((t) => t.area === a) })).filter((g) => g.tasks.length);
-  const deadlines = upcomingDeadlines(tasks, today);
   const week = weekAhead(tasks, reminders, today, cal.events);
   const agenda = cal.events.filter((e) => e.date === today).sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const now = nowHM();
   const nextEvent = agenda.find((e) => e.time && (e.endTime ?? e.time) > now);
+  const deadlines = upcomingDeadlines(tasks, today, 5, cal.events, now);
   const empty = !tasks.length && mode !== "demo";
 
   const summary = [
@@ -38,7 +39,7 @@ export default function HoyPage() {
         ? `Ahora: ${nextEvent.title} (hasta las ${nextEvent.endTime})`
         : `Próximo: ${nextEvent.title} a las ${nextEvent.time}`
       : agenda.length > 0 && `${agenda.length} ${agenda.length === 1 ? "evento" : "eventos"} hoy en tu calendario`,
-    deadlines[0] && `${deadlines[0].task.title} vence ${relativeDays(deadlines[0].task.due_date!, today).toLowerCase()}`,
+    deadlines[0] && `${deadlines[0].title} vence ${relativeDays(deadlines[0].date, today).toLowerCase()}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -226,31 +227,7 @@ export default function HoyPage() {
               <KickerRow kicker="Deadlines FIU">
                 <GoToButton href="/uni" label="Ver todo" />
               </KickerRow>
-              {deadlines.map(({ task, days }) => (
-                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 0" }}>
-                  <div
-                    style={{
-                      width: 44,
-                      flex: "none",
-                      textAlign: "center",
-                      borderRadius: "var(--radius-sm)",
-                      padding: "4px 0",
-                      background: "var(--color-neutral-900)",
-                    }}
-                  >
-                    <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-neutral-500)" }}>
-                      {monShort(task.due_date!)}
-                    </div>
-                    <div style={{ fontSize: 17, fontWeight: 500 }}>{dayNum(task.due_date!)}</div>
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.title}</div>
-                    {task.meta && <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>{task.meta}</div>}
-                  </div>
-                  <span className={days <= 3 ? "tag tag-outline" : "tag tag-neutral"}>{relativeDays(task.due_date!, today)}</span>
-                </div>
-              ))}
-              {!deadlines.length && <div className="empty">Sin entregas próximas en el área Universidad.</div>}
+              <DeadlineList items={deadlines} calendarState={cal} />
             </Card>
 
             <Card style={{ gap: 8 }}>

@@ -1,6 +1,6 @@
 import { addDays, daysBetween } from "./dates";
 import type { Area, Reminder, Task } from "./types";
-import type { CalEvent } from "./calendar";
+import { isDeadline, type CalEvent } from "./calendar";
 
 const doneOn = (t: Task, day: string, toISO: (d: Date) => string) => !!t.done_at && toISO(new Date(t.done_at)) === day;
 
@@ -69,11 +69,51 @@ export function weekAhead(tasks: Task[], reminders: Reminder[], today: string, c
   });
 }
 
-/** Próximas entregas de la universidad (tareas del área uni con fecha ≥ hoy). */
-export function upcomingDeadlines(tasks: Task[], today: string, n = 3) {
-  return tasks
+export type Deadline = {
+  key: string;
+  title: string;
+  meta: string | null;
+  date: string;
+  time: string | null;
+  days: number;
+  source: "task" | "calendar";
+  link: string | null;
+};
+
+/** Próximas entregas: tareas del área Universidad + entregas/exámenes del
+ *  calendario (de Canvas), sin las que ya pasaron. */
+export function upcomingDeadlines(tasks: Task[], today: string, n = 5, calendar: CalEvent[] = [], now = "00:00"): Deadline[] {
+  const fromTasks: Deadline[] = tasks
     .filter((t) => t.area === "uni" && !t.done_at && t.due_date && t.due_date >= today)
-    .sort(byDue)
-    .slice(0, n)
-    .map((t) => ({ task: t, days: daysBetween(today, t.due_date!) }));
+    .map((t) => ({
+      key: `task:${t.id}`,
+      title: t.title,
+      meta: t.meta,
+      date: t.due_date!,
+      time: t.due_time ? t.due_time.slice(0, 5) : null,
+      days: daysBetween(today, t.due_date!),
+      source: "task",
+      link: null,
+    }));
+  // Un evento de varios días cuenta una vez, en su último día (el de entrega).
+  const lastDay = new Map<string, CalEvent>();
+  for (const e of calendar.filter(isDeadline)) {
+    const prev = lastDay.get(e.sourceId);
+    if (!prev || e.date > prev.date) lastDay.set(e.sourceId, e);
+  }
+  const fromCal: Deadline[] = [...lastDay.values()]
+    .filter((e) => e.date > today || (e.date === today && (!e.time || (e.endTime ?? e.time) > now)))
+    .map((e) => ({
+      key: `cal:${e.sourceId}`,
+      title: e.title,
+      meta: [e.course, e.time && `${e.time}${e.endTime ? `–${e.endTime}` : ""}`].filter(Boolean).join(" · ") || null,
+      date: e.date,
+      time: e.time,
+      days: daysBetween(today, e.date),
+      source: "calendar",
+      link: e.link,
+    }));
+  return [...fromTasks, ...fromCal]
+    .sort((a, b) => `${a.date}${a.time ?? "99"}`.localeCompare(`${b.date}${b.time ?? "99"}`))
+    .slice(0, n);
 }

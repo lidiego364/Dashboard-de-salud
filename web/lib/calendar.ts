@@ -5,7 +5,13 @@ import { CALENDAR_SERVER, explainMcpError, getCapability, readTool } from "./cla
 
 export type CalEvent = {
   id: string;
+  /** id del evento en Google (los de varios días comparten este id). */
+  sourceId: string;
   title: string;
+  /** Curso que Canvas pone entre corchetes al final: "… [Database Applications]". */
+  course: string | null;
+  /** Se repite (una clase semanal, no una entrega). */
+  recurring: boolean;
   date: string; // día local (YYYY-MM-DD) en que aparece
   time: string | null; // "14:00"; null = todo el día
   endTime: string | null;
@@ -21,7 +27,16 @@ export function parseEvents(payload: any): CalEvent[] {
   const out: CalEvent[] = [];
   for (const e of payload?.events ?? []) {
     if (!e || e.status === "cancelled" || e.eventType === "WORKING_LOCATION") continue;
-    const base = { title: e.summary || "(Sin título)", location: e.location || null, link: e.htmlLink || null };
+    const raw = String(e.summary || "").trim();
+    const m = raw.match(/\s*\[([^\]]+)\]\s*$/);
+    const base = {
+      sourceId: String(e.id),
+      title: (m ? raw.slice(0, m.index).trim() : raw) || "(Sin título)",
+      course: m ? m[1].trim() : null,
+      recurring: !!e.recurringEventId,
+      location: e.location || null,
+      link: e.htmlLink || null,
+    };
     if (e.start?.dateTime) {
       const start = new Date(e.start.dateTime);
       const end = e.end?.dateTime ? new Date(e.end.dateTime) : null;
@@ -36,6 +51,15 @@ export function parseEvents(payload: any): CalEvent[] {
     }
   }
   return out;
+}
+
+const DEADLINE_WORDS = /\b(exam\w*|quiz\w*|midterm|final|assignment|homework|hw|project|lab|due|deadline|entrega|examen|parcial|tarea)\b/i;
+
+/** ¿Es una entrega o examen (y no una clase)? Canvas exporta las entregas con el
+ *  curso entre corchetes; las clases son eventos que se repiten. */
+export function isDeadline(e: CalEvent) {
+  if (e.recurring) return false;
+  return e.course !== null || DEADLINE_WORDS.test(e.title.replace(/_/g, " "));
 }
 
 /** "2026-10-05T00:00:00-04:00": medianoche de Miami para ese día. */
@@ -87,7 +111,8 @@ async function load() {
   try {
     const payload = await readTool(mcp, CALENDAR_SERVER, "list_events", {
       startTime: midnightIn(today),
-      endTime: midnightIn(addDays(today, 7)),
+      // 3 semanas: la vista de la semana usa 7 días; Deadlines FIU mira más lejos.
+      endTime: midnightIn(addDays(today, 21)),
       timeZone: TZ,
       orderBy: "startTime",
       pageSize: 250,

@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { AreaTasksCard, Card, Columns, DemoTag, PageTitle } from "@/components/Cards";
+import { useData } from "@/components/DataProvider";
+import { DeadlineList } from "@/components/DeadlineList";
+import { useCalendar } from "@/components/useCalendar";
+import { nowHM, todayISO } from "@/lib/dates";
+import { upcomingDeadlines } from "@/lib/selectors";
 import { DEMO } from "@/lib/demo";
 
 export default function UniPage() {
+  const { tasks } = useData();
+  const cal = useCalendar();
+  const deadlines = upcomingDeadlines(tasks, todayISO(), 50, cal.events, nowHM());
   const [open, setOpen] = useState<string | null>("a1");
   const [checks, setChecks] = useState<Record<string, boolean>>({ "a1-0": true, "a2-0": true });
 
@@ -12,7 +20,10 @@ export default function UniPage() {
 
   return (
     <>
-      <PageTitle title="Universidad" sub="Fall 2026 · 4 cursos · 5 entregas pendientes">
+      <PageTitle
+        title="Universidad"
+        sub={`Fall 2026 · ${deadlines.length} ${deadlines.length === 1 ? "entrega próxima" : "entregas próximas"}${cal.available ? " en las próximas 3 semanas" : ""}`}
+      >
         <DemoTag phase="fase 3" />
         <button className="btn btn-primary" disabled title="Llega en la fase 3">
           <i className="ph ph-upload-simple" style={{ fontSize: 16 }} />
@@ -43,6 +54,16 @@ export default function UniPage() {
               </div>
               <span className="tag tag-neutral">Disponible en la fase 3</span>
             </section>
+
+            <Card style={{ gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                <div className="card-title">Próximas entregas</div>
+                <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
+                  {cal.available ? "Tus tareas de la uni y lo que Canvas puso en tu calendario · próximas 3 semanas" : "Tus tareas del área Universidad"}
+                </div>
+              </div>
+              <DeadlineList items={deadlines} calendarState={cal} />
+            </Card>
 
             <Card style={{ gap: 4 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
