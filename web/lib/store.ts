@@ -1,6 +1,7 @@
 import type { NewRow, RowPatch, TableName, Tables } from "./types";
 import { getBrowserClient } from "./supabase/client";
 import { exampleData } from "./example-data";
+import { newId } from "./id";
 
 export interface Store {
   list<T extends TableName>(table: T): Promise<Tables[T][]>;
@@ -40,36 +41,43 @@ function normalizeGoal<G extends { progress: unknown }>(g: G) {
   return { ...g, progress: Number(g.progress) };
 }
 
-/** Modo demo: todo vive en localStorage de este navegador. */
-export function localStore(): Store {
-  const KEY = "diego-os:v1";
-  type Db = { [K in TableName]: Tables[K][] };
+export type Backup = { [K in TableName]: Tables[K][] };
 
-  const read = (): Db => {
+/** Modo local: todo vive en localStorage de este navegador. Se mantiene una
+ *  copia en memoria para que la app funcione aunque el navegador bloquee el
+ *  almacenamiento (en ese caso los cambios duran solo mientras esté abierta). */
+export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } {
+  const KEY = "diego-os:v1";
+  let mem: Backup | null = null;
+
+  const read = (): Backup => {
+    if (mem) return mem;
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return JSON.parse(raw) as Db;
+      if (raw) return (mem = JSON.parse(raw) as Backup);
     } catch {}
     const seeded = exampleData();
     write(seeded);
     return seeded;
   };
-  const write = (db: Db) => {
+  const write = (db: Backup) => {
+    mem = db;
     try {
       localStorage.setItem(KEY, JSON.stringify(db));
     } catch {}
   };
 
   return {
+    // Siempre copias: React no debe compartir arreglos con el almacenamiento.
     async list(table) {
-      return read()[table] as never;
+      return read()[table].map((r) => ({ ...r })) as never;
     },
     async insert(table, row) {
       const db = read();
-      const full = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() } as Tables[typeof table];
+      const full = { ...row, id: newId(), created_at: new Date().toISOString() } as Tables[typeof table];
       (db[table] as Tables[typeof table][]).push(full);
       write(db);
-      return full as never;
+      return { ...full } as never;
     },
     async update(table, id, patch) {
       const db = read();
@@ -78,12 +86,26 @@ export function localStore(): Store {
       if (i < 0) throw new Error("No existe");
       rows[i] = { ...rows[i], ...patch };
       write(db);
-      return rows[i] as never;
+      return { ...rows[i] } as never;
     },
     async remove(table, id) {
       const db = read();
       (db as Record<TableName, { id: string }[]>)[table] = db[table].filter((r) => r.id !== id);
       write(db);
     },
+    async replaceAll(db) {
+      write(structuredClone(db));
+    },
   };
+}
+
+/** Valida un respaldo JSON antes de importarlo. */
+export function parseBackup(text: string): Backup {
+  const data = JSON.parse(text);
+  for (const t of ["tasks", "goals", "reminders"] as const) {
+    if (!Array.isArray(data?.[t]) || data[t].some((r: unknown) => typeof (r as { id?: unknown })?.id !== "string")) {
+      throw new Error(`El archivo no es un respaldo de Diego OS (falta "${t}").`);
+    }
+  }
+  return { tasks: data.tasks, goals: data.goals, reminders: data.reminders };
 }

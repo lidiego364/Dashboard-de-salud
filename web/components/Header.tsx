@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useData } from "./DataProvider";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { longToday } from "@/lib/dates";
@@ -19,7 +19,24 @@ export const TABS = [
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { mode, error, clearError } = useData();
+  const { mode, error, clearError, exportBackup, importBackup } = useData();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const standalone = process.env.NEXT_PUBLIC_STANDALONE === "1";
+
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([exportBackup()], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `diego-os-respaldo-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    if (confirm("Esto reemplaza todos tus datos actuales por los del respaldo. ¿Continuar?")) await importBackup(await file.text());
+    if (fileRef.current) fileRef.current.value = "";
+  };
   // La fecha depende de la hora del cliente: se pinta después de hidratar.
   const [date, setDate] = useState("");
   useEffect(() => setDate(longToday()), []);
@@ -64,10 +81,19 @@ export function Header() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {mode === "demo" ? (
-            <span className="tag tag-accent" style={{ gap: 6 }} title="Sin Supabase configurado: los datos se guardan solo en este navegador">
-              <i className="ph ph-flask" />
-              Modo demo
-            </span>
+            <>
+              <span className="tag tag-accent" style={{ gap: 6 }} title="Los datos se guardan solo en este navegador">
+                <i className={standalone ? "ph ph-hard-drives" : "ph ph-flask"} />
+                {standalone ? "Guardado en este navegador" : "Modo demo"}
+              </span>
+              <button className="btn btn-secondary btn-icon" aria-label="Descargar respaldo" title="Descargar respaldo (.json)" onClick={download}>
+                <i className="ph ph-download-simple" style={{ fontSize: 16 }} />
+              </button>
+              <button className="btn btn-secondary btn-icon" aria-label="Importar respaldo" title="Importar respaldo (.json)" onClick={() => fileRef.current?.click()}>
+                <i className="ph ph-upload-simple" style={{ fontSize: 16 }} />
+              </button>
+              <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => upload(e.target.files?.[0])} />
+            </>
           ) : (
             <button className="btn btn-secondary btn-icon" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={logout}>
               <i className="ph ph-sign-out" style={{ fontSize: 16 }} />

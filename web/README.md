@@ -16,6 +16,18 @@ funcionando igual.
 
 Lo que aún no tiene fuente real se muestra con la etiqueta **“ejemplo · fase N”**.
 
+## Versión de un solo archivo (`diego-os.html`)
+
+En la raíz del repo está **`diego-os.html`**: la app entera en un archivo, sin servidor,
+sin Supabase y sin instalar nada. Ábrelo con doble clic en el navegador.
+
+- Los datos se guardan **en ese navegador** (localStorage). Otro navegador u otro
+  dispositivo empieza vacío.
+- Usa los botones de la cabecera para **descargar un respaldo** (.json) y para
+  **importarlo** en otro navegador. Si borras los datos del navegador, se pierde lo que
+  no hayas respaldado.
+- Para regenerarlo después de cambiar el código: `cd web && npm run standalone`.
+
 ## Probar en local
 
 ```bash

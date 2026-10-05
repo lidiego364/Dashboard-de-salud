@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { exampleRows } from "@/lib/example-data";
-import { localStore, supabaseStore, type Store } from "@/lib/store";
+import { localStore, parseBackup, supabaseStore, type Backup, type Store } from "@/lib/store";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { NewRow, RowPatch, TableName, Tables } from "@/lib/types";
 
@@ -17,6 +17,9 @@ type DataCtx = Rows & {
   patch: <T extends TableName>(table: T, id: string, patch: RowPatch<T>) => Promise<void>;
   remove: (table: TableName, id: string) => Promise<void>;
   loadExample: () => Promise<void>;
+  /** Solo sin Supabase: respaldo de todos los datos en un JSON. */
+  exportBackup: () => string;
+  importBackup: (json: string) => Promise<void>;
 };
 
 const Ctx = createContext<DataCtx | null>(null);
@@ -26,7 +29,8 @@ const TABLES: TableName[] = ["tasks", "goals", "reminders"];
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const mode = isSupabaseConfigured ? "supabase" : "demo";
-  const store = useMemo<Store>(() => (mode === "supabase" ? supabaseStore() : localStore()), [mode]);
+  const local = useMemo(() => (mode === "supabase" ? null : localStore()), [mode]);
+  const store = useMemo<Store>(() => local ?? supabaseStore(), [local]);
   const [rows, setRows] = useState<Rows>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,9 +94,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const exportBackup = () => JSON.stringify({ exported_at: new Date().toISOString(), ...rows } satisfies Backup & { exported_at: string }, null, 2);
+
+  const importBackup = async (json: string) => {
+    try {
+      if (!local) throw new Error("Importar solo está disponible en la versión local.");
+      await local.replaceAll(parseBackup(json));
+      await reload();
+    } catch (e) {
+      fail(e);
+    }
+  };
+
   return (
     <Ctx.Provider
-      value={{ ...rows, mode, loading, error, clearError: () => setError(null), create, patch, remove, loadExample }}
+      value={{
+        ...rows,
+        mode,
+        loading,
+        error,
+        clearError: () => setError(null),
+        create,
+        patch,
+        remove,
+        loadExample,
+        exportBackup,
+        importBackup,
+      }}
     >
       {children}
     </Ctx.Provider>

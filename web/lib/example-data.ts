@@ -1,5 +1,6 @@
 import { addDays, todayISO } from "./dates";
 import type { Goal, NewRow, Reminder, Task } from "./types";
+import { newId } from "./id";
 
 /** Datos del prototipo, con fechas relativas a hoy. Se usan en modo demo
  *  y en el botón "Cargar ejemplo" cuando la cuenta está vacía. */
@@ -39,7 +40,7 @@ export function exampleRows() {
 export function exampleData() {
   const rows = exampleRows();
   const now = new Date().toISOString();
-  const withId = <T,>(r: T) => ({ ...r, id: crypto.randomUUID(), created_at: now });
+  const withId = <T,>(r: T) => ({ ...r, id: newId(), created_at: now });
   return {
     tasks: rows.tasks.map(withId) as Task[],
     goals: rows.goals.map(withId) as Goal[],
