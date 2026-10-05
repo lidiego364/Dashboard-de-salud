@@ -1,9 +1,11 @@
 // Reemplazo de next/navigation para la versión de un solo archivo.
 // Las pestañas cambian en memoria, sin navegar: en claude.ai la página vive en
-// un marco aislado y un enlace "#uni" saca al marco de la página (pantalla en
-// blanco). El hash (#uni, #salud…) solo se lee al abrir y se actualiza cuando
-// el navegador lo permite, para poder abrir una pestaña directo con un link.
+// un marco aislado. El hash (#uni, #salud…) solo se LEE al abrir, para poder
+// abrir una pestaña directo con un link.
+// NUNCA se escribe la URL: en el visor de claude.ai cambiar la dirección del
+// marco lo deja en blanco.
 import { useEffect, useState } from "react";
+import { diag } from "./diag";
 
 const fromHash = () => {
   try {
@@ -19,12 +21,9 @@ let current = typeof window === "undefined" ? "/" : fromHash();
 const listeners = new Set<(p: string) => void>();
 
 export function navigate(href: string) {
+  void diag("nav", href);
   current = href;
   listeners.forEach((fn) => fn(href));
-  try {
-    // En el marco de claude.ai esto puede fallar (otro origen): no importa.
-    history.replaceState(null, "", toHash(href));
-  } catch {}
 }
 
 export function usePathname() {

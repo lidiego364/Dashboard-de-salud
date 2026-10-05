@@ -12,6 +12,7 @@ import TrabajoPage from "@/app/(app)/trabajo/page";
 import PersonalPage from "@/app/(app)/personal/page";
 import { usePathname } from "next/navigation";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { diag, startDiag } from "./diag";
 
 const PAGES: Record<string, () => React.ReactNode> = {
   "/": HoyPage,
@@ -25,11 +26,20 @@ const PAGES: Record<string, () => React.ReactNode> = {
 function App() {
   const path = usePathname();
   const Page = PAGES[path] ?? HoyPage;
-  useEffect(() => window.scrollTo({ top: 0 }), [path]);
+  useEffect(() => {
+    void diag("rendered", path);
+    try {
+      window.scrollTo(0, 0);
+    } catch (e) {
+      void diag("scroll-error", (e as Error).message);
+    }
+  }, [path]);
   return (
     <DataProvider>
       <div className="app-bg">
-        <Header />
+        <ErrorBoundary resetKey={path}>
+          <Header />
+        </ErrorBoundary>
         <main style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 64px" }}>
           <ErrorBoundary resetKey={path}>
             <Page />
@@ -40,4 +50,5 @@ function App() {
   );
 }
 
+void startDiag();
 createRoot(document.getElementById("root")!).render(<App />);
