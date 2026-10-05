@@ -5,10 +5,9 @@ import { Card } from "@/components/Cards";
 import { useData } from "@/components/DataProvider";
 import { addDays, dayNum, dowShort, todayISO } from "@/lib/dates";
 
-export function CreatineCard() {
+/** Estado de la creatina de hoy y acciones (compartido por Salud y Hoy). */
+function useCreatine() {
   const { creatine, create, patch, remove } = useData();
-  const [custom, setCustom] = useState(false);
-  const [grams, setGrams] = useState("");
   const today = todayISO();
   const byDate = new Map(creatine.map((c) => [c.date, c]));
   const todayRow = byDate.get(today);
@@ -17,13 +16,41 @@ export function CreatineCard() {
   // Racha: días seguidos con creatina, contando desde hoy (o desde ayer si hoy aún no).
   let streak = 0;
   for (let d = todayRow ? today : addDays(today, -1); byDate.has(d); d = addDays(d, -1)) streak++;
-  const last14 = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
 
   const take = (g: number) => {
     if (!(g > 0)) return;
     if (todayRow) patch("creatine", todayRow.id, { grams: g });
     else create("creatine", { date: today, grams: g });
   };
+  const undo = () => todayRow && remove("creatine", todayRow.id);
+  return { today, byDate, todayRow, usual, streak, take, undo };
+}
+
+/** Versión compacta para la tarjeta de Salud en "Hoy". */
+export function CreatineToday() {
+  const { todayRow, usual, streak, take } = useCreatine();
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>Creatina hoy</div>
+      {todayRow ? (
+        <div style={{ fontSize: 16, display: "flex", alignItems: "center", gap: 6 }}>
+          <i className="ph-fill ph-check-circle" style={{ color: "var(--color-accent)" }} />
+          {todayRow.grams} g{streak > 1 && <span style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>· {streak} días seguidos</span>}
+        </div>
+      ) : (
+        <button className="btn btn-secondary" style={{ marginTop: 2, fontSize: 13 }} onClick={() => take(usual)}>
+          <i className="ph ph-check" /> Tomé {usual} g
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function CreatineCard() {
+  const { today, byDate, todayRow, usual, streak, take, undo } = useCreatine();
+  const [custom, setCustom] = useState(false);
+  const [grams, setGrams] = useState("");
+  const last14 = Array.from({ length: 14 }, (_, i) => addDays(today, i - 13));
 
   return (
     <Card style={{ gap: 8 }}>
@@ -37,7 +64,7 @@ export function CreatineCard() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <i className="ph-fill ph-check-circle" style={{ fontSize: 20, color: "var(--color-accent)" }} />
           <span style={{ fontSize: 15 }}>Hoy: {todayRow.grams} g</span>
-          <button className="btn btn-ghost" style={{ marginLeft: "auto", fontSize: 12 }} onClick={() => remove("creatine", todayRow.id)}>
+          <button className="btn btn-ghost" style={{ marginLeft: "auto", fontSize: 12 }} onClick={undo}>
             Deshacer
           </button>
         </div>

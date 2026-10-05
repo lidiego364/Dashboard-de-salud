@@ -9,7 +9,7 @@ funcionando igual.
 | Fase | Qué | Estado |
 |---|---|---|
 | 1 | Diseño completo, login, tareas/objetivos/recordatorios guardados en Supabase | ✅ |
-| 2 | Salud completa: Garmin en vivo, "Registrar peso" (escribe en Garmin), recuperación (HRV, estado de entrenamiento, sueño por fases), creatina y fotos de progreso | ✅ (página en claude.ai) |
+| 2 | Salud: tendencia del peso (Garmin en vivo) y creatina. Lo demás de Garmin se ve en su app. | ✅ (página en claude.ai) |
 | 3 | Universidad: Canvas + subir syllabus/screenshot (Claude extrae deadlines) | pendiente |
 | 4 | Finanzas: PocketSmith o CSV del banco | pendiente |
 | 5 | Calendario de Google y notificaciones | pendiente |
@@ -38,9 +38,9 @@ sin Supabase y sin instalar nada. Ábrelo con doble clic en el navegador.
 `npm run standalone` también genera `diego-os.page.html`, la versión para publicar como
 página privada en claude.ai:
 
-- **Garmin en vivo:** al abrirla, lee tus datos con tu propio conector "Garmin
-  connection" (5 herramientas de solo lectura: resumen del día, pesajes, pasos/calorías,
-  actividades y sueño). No guarda ninguna foto dentro del archivo.
+- **Garmin en vivo:** al abrirla, lee tus pesajes con tu propio conector "Garmin
+  connection" (2 herramientas de solo lectura: pesajes y resumen del día). No guarda
+  ninguna foto dentro del archivo.
 - **Google Calendar en vivo:** lee tus eventos de los próximos 7 días con el conector
   "Google Calendar" (solo `list_events`, lectura). Aparecen en "Esta semana", en la tarjeta
   "Hoy en tu calendario" y en el resumen de arriba; cada evento abre en Google Calendar.
@@ -48,11 +48,8 @@ página privada en claude.ai:
   eventos que son entregas o exámenes: los que no se repiten y traen el curso de Canvas
   entre corchetes (`… [Database Applications]`) o una palabra como exam, quiz, project,
   assignment, lab o entrega. Las clases (eventos que se repiten) no entran.
-- **Salud:** además de lo anterior, "Registrar peso" guarda el pesaje en Garmin
-  (`add_weigh_in`, única escritura de la página, siempre tras confirmar), una fila de
-  Recuperación (HRV de 14 noches vs. media de 7 días, estado de entrenamiento y carga,
-  sueño por fases), creatina (un toque al día, racha) y fotos de progreso (se reducen a
-  JPEG de hasta 1600 px y se guardan en la página).
+- **Salud:** solo la tendencia del peso (meta, ritmo, gráfico de 28 días) y la
+  creatina (un toque al día, racha). Sueño, pasos y entrenamientos se ven en Garmin.
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

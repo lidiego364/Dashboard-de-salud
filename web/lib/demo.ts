@@ -26,7 +26,6 @@ export const DEMO = {
     { code: "ISM 3232", name: "Business Analytics", grade: "A− · 90%" },
   ],
 
-  photos: ["1 ago", "1 sep", "1 oct"],
 
   insights: [
     { icon: "ph ph-trend-up", text: "Este mes llevas $312 más que el mes pasado.", sub: "Septiembre $1,550 vs agosto $1,238" },
@@ -60,35 +59,13 @@ export const DEMO = {
   ],
 };
 
-/** Foto de Garmin inventada (la del prototipo), con fechas relativas a hoy. */
+/** Foto de Garmin inventada (pesos del prototipo), con fechas relativas a hoy. */
 export function demoSnapshot(): GarminSnapshot {
   const ref = todayISO();
   const weights = [89.4, 89.1, 89.6, 89.0, 88.8, 89.2, 88.7, 88.9, 88.5, 88.8, 88.3, 88.6, 88.1, 88.4, 88.0, 87.75, 87.7, 87.6, 87.9, 87.5, 87.7, 87.3, 87.6, 87.1, 87.4, 86.9, 87.2, 86.8];
-  const steps = [9100, 7800, 10200, 8400, 7600, 9300, 6240];
-  const at = (n: number, time: string) => `${addDays(ref, n)} ${time}`;
   return {
     synced_at: new Date().toISOString(),
     weights: weights.map((kg, i) => ({ date: addDays(ref, i - weights.length + 1), kg })),
-    days: steps.map((s, i) => ({ date: addDays(ref, i - steps.length + 1), steps: s, total_kcal: 2900 + (s % 700), active_kcal: 600 + (s % 500), partial: i === steps.length - 1 })),
-    sleep: [6.9, 7.4, 7.1, 6.6, 7.8, 7.3, 7.08].map((h, i) => ({
-      date: addDays(ref, i - 6),
-      hours: h,
-      score: 70 + i * 2,
-      hrv: 84 + i,
-      deep_h: Math.round(h * 0.14 * 100) / 100,
-      light_h: Math.round(h * 0.56 * 100) / 100,
-      rem_h: Math.round(h * 0.25 * 100) / 100,
-      awake_h: Math.round(h * 0.05 * 100) / 100,
-    })),
-    hrv: [80, 86, 79, 90, 84, 88, 91, 85, 83, 92, 87, 89, 86, 88].map((ms, i) => ({ date: addDays(ref, i - 13), ms, weekly_ms: 85 + Math.round(i / 4), status: "BALANCED" })),
-    training: { status: "PRODUCTIVE_1", acute_load: 640, chronic_load: 590, ratio: 1.1, acwr_status: "OPTIMAL", balance: "BALANCED" },
-    recovery_hours: 18,
-    activities: [
-      { start: at(-6, "18:00:00"), type: "strength_training", name: "Upper A", minutes: 62, distance_m: null, kcal: 480, avg_hr: 112 },
-      { start: at(-5, "18:00:00"), type: "strength_training", name: "Lower A", minutes: 58, distance_m: null, kcal: 455, avg_hr: 118 },
-      { start: at(-3, "07:30:00"), type: "running", name: "Zona 2", minutes: 34, distance_m: 5200, kcal: 390, avg_hr: 138 },
-      { start: at(-2, "18:00:00"), type: "strength_training", name: "Upper B", minutes: 55, distance_m: null, kcal: 430, avg_hr: 110 },
-    ],
-    today: { date: ref, steps: 6240, step_goal: 10000, resting_hr: 56, resting_hr_7d: 57, body_battery: 64, body_battery_high: 92 },
+    today: { date: ref },
   };
 }

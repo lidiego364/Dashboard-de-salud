@@ -7,12 +7,8 @@ export type McpError = { code: string; message: string; server?: string; retryab
 export type CallResult = { payload?: unknown; cache?: { storedAt: number } };
 export type Mcp = {
   callTool(server: string, tool: string, input?: unknown, options?: { cache?: false | { staleTime?: number; refresh?: boolean } }): Promise<CallResult>;
-  invalidate?(server?: string, tool?: string, input?: unknown): Promise<void>;
 };
-export type Assets = {
-  upload(blob: Blob, options?: { type?: string }): Promise<{ id: string; url: string; sizeBytes: number; contentType: string }>;
-  delete(ref: string): Promise<void>;
-};
+
 export type DbDoc = { id: string; exists: boolean; data(): Record<string, unknown> | undefined };
 export type DbDocRef = {
   get(): Promise<DbDoc>;
@@ -26,7 +22,7 @@ export type Db = {
 };
 export type Downloads = { save(req: { filename: string; data: string }): Promise<unknown> };
 
-type Caps = { mcp: Mcp; db: Db; downloads: Downloads; assets: Assets };
+type Caps = { mcp: Mcp; db: Db; downloads: Downloads };
 type ClaudeGlobal = { use<K extends keyof Caps>(name: K): Promise<Caps[K] | null> };
 
 export function inClaude(): boolean {
@@ -86,10 +82,4 @@ export async function readTool(mcp: Mcp, server: string, tool: string, input: un
     }
     throw e;
   }
-}
-
-/** Escritura en un conector: una sola vez, sin cache y SIN reintentos (si falla
- *  por tiempo, puede que igual se haya guardado: se le pide al usuario revisar). */
-export async function writeTool(mcp: Mcp, server: string, tool: string, input: unknown): Promise<unknown> {
-  return (await mcp.callTool(server, tool, input, { cache: false })).payload;
 }

@@ -1,13 +1,12 @@
 "use client";
 
-import { AreaTasksCard, Card, DemoTag, Loading, PageTitle } from "@/components/Cards";
-import { RecoveryRow } from "@/components/health/Recovery";
+import { Card, Columns, DemoTag, Loading, PageTitle } from "@/components/Cards";
 import { CreatineCard } from "@/components/health/Logs";
-import { PhotosCard } from "@/components/health/Photos";
-import { WeightLogButton } from "@/components/health/WeightLog";
 import { useHealth } from "@/components/useHealth";
 import { WeightChart } from "@/components/WeightChart";
 
+// Salud: solo la tendencia del peso y la creatina. Lo demás (sueño, pasos,
+// entrenamientos) se ve en la app de Garmin.
 export default function SaludPage() {
   const health = useHealth();
   if (!health || (health.source === "demo" && health.loading)) return <Loading />;
@@ -15,14 +14,18 @@ export default function SaludPage() {
     return (
       <>
         <PageTitle title="Salud · Weight cut" />
-        <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-          <i className="ph ph-watch" style={{ fontSize: 22, color: "var(--color-accent)" }} />
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: 15 }}>No pude leer tus datos de Garmin</div>
-            <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{health.error}</div>
-          </div>
-        </Card>
-        <AreaTasksCard area="salud" title="Tareas de salud" />
+        <Columns
+          main={
+            <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <i className="ph ph-watch" style={{ fontSize: 22, color: "var(--color-accent)" }} />
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: 15 }}>No pude leer tus pesajes de Garmin</div>
+                <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{health.error}</div>
+              </div>
+            </Card>
+          }
+          side={<CreatineCard />}
+        />
       </>
     );
   const { view: h, live } = health;
@@ -31,7 +34,6 @@ export default function SaludPage() {
     <>
       <PageTitle title="Salud · Weight cut" sub={h.subtitle}>
         {!live && <DemoTag phase="fase 2" />}
-        <WeightLogButton lastKg={h.chart.points.at(-1)?.kg ?? null} />
       </PageTitle>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 16, marginBottom: 16 }}>
@@ -44,86 +46,34 @@ export default function SaludPage() {
         ))}
       </div>
 
-      <Card style={{ padding: "18px 20px", gap: 12, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <div className="card-title">Peso · últimos 28 días</div>
-          <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--color-neutral-400)", marginLeft: "auto", flexWrap: "wrap" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-neutral-500)" }} />
-              Pesaje
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 14, height: 2, background: "var(--color-accent)" }} />
-              Tendencia 7 días
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 14, borderTop: "1px dashed var(--color-neutral-500)" }} />
-              Meta {h.chart.goal} kg
-            </span>
-          </div>
-        </div>
-        {h.chart.points.length ? <WeightChart {...h.chart} /> : <div className="empty">Sin pesajes en los últimos 28 días.</div>}
-        <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>
-          La tendencia suaviza agua y sodio: el peso de un día puede variar ±0.8 kg; la media de 7 días es la que cuenta.
-        </div>
-      </Card>
-
-      <RecoveryRow recovery={h.recovery} />
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 16, marginBottom: 16 }}>
-        {h.metrics.map((m) => (
-          <Card key={m.label} style={{ padding: "14px 16px", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--color-neutral-500)" }}>
-              <i className={m.icon} style={{ fontSize: 15 }} />
-              {m.label}
+      <Columns
+        main={
+          <Card style={{ padding: "18px 20px", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div className="card-title">Peso · últimos 28 días</div>
+              <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--color-neutral-400)", marginLeft: "auto", flexWrap: "wrap" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-neutral-500)" }} />
+                  Pesaje
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 14, height: 2, background: "var(--color-accent)" }} />
+                  Tendencia 7 días
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 14, borderTop: "1px dashed var(--color-neutral-500)" }} />
+                  Meta {h.chart.goal} kg
+                </span>
+              </div>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 500 }}>{m.value}</div>
-            <div style={{ height: 3, borderRadius: 2, background: m.pct === null ? "transparent" : "var(--color-neutral-800)", overflow: "hidden" }}>
-              {m.pct !== null && <div style={{ height: "100%", width: `${m.pct}%`, background: "var(--color-accent-500)" }} />}
+            {h.chart.points.length ? <WeightChart {...h.chart} /> : <div className="empty">Sin pesajes en los últimos 28 días.</div>}
+            <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>
+              La tendencia suaviza agua y sodio: el peso de un día puede variar ±0.8 kg; la media de 7 días es la que cuenta.
             </div>
-            <div style={{ fontSize: 12, color: "var(--color-neutral-400)" }}>{m.sub}</div>
           </Card>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
-        <Card style={{ flex: "2 1 520px", minWidth: 0, gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
-            <div className="card-title">Entrenamientos · últimos 7 días</div>
-            <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>{h.workouts.length} sesiones</div>
-          </div>
-          <div className="scroll-x">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Día</th>
-                  <th>Sesión</th>
-                  <th>Duración</th>
-                  <th>FC media</th>
-                  <th style={{ textAlign: "right" }}>kcal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {h.workouts.map((w) => (
-                  <tr key={w.key}>
-                    <td style={{ color: "var(--color-neutral-400)", whiteSpace: "nowrap" }}>{w.day}</td>
-                    <td>{w.name}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{w.dur}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{w.hr}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{w.kcal}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!h.workouts.length && <div className="empty">Sin entrenamientos registrados esta semana.</div>}
-          </div>
-        </Card>
-        <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-          <CreatineCard />
-          <AreaTasksCard area="salud" title="Tareas de salud" compact />
-          <PhotosCard />
-        </div>
-      </div>
+        }
+        side={<CreatineCard />}
+      />
     </>
   );
 }

@@ -12,6 +12,7 @@ import { DEMO } from "@/lib/demo";
 import { useHealth } from "@/components/useHealth";
 import { useCalendar } from "@/components/useCalendar";
 import { DeadlineList } from "@/components/DeadlineList";
+import { CreatineToday } from "@/components/health/Logs";
 
 export default function HoyPage() {
   const { tasks, reminders, loading, mode, loadExample } = useData();
@@ -260,13 +261,16 @@ export default function HoyPage() {
                 <GoToButton href="/salud" label="Detalle" />
               </KickerRow>
               {health.unavailable ? (
-                <div className="empty">{health.error}</div>
+                <>
+                  <div className="empty">{health.error}</div>
+                  <CreatineToday />
+                </>
               ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
                 <Stat label="Peso" value={health.view.hoy.weight} unit="kg" big />
                 <Stat label="Tendencia 7 días" value={health.view.hoy.trend} unit="kg" big accent />
-                <Stat label="Pasos hoy" value={health.view.hoy.steps} unit={`/ ${health.view.hoy.stepGoal}`} />
-                <Stat label="Sueño anoche" value={health.view.hoy.sleep} />
+                <Stat label="Ritmo semanal" value={health.view.hoy.weekly} />
+                <CreatineToday />
               </div>
               )}
             </Card>
