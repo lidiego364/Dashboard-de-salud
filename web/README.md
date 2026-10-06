@@ -12,7 +12,7 @@ funcionando igual.
 | 2 | Salud: tendencia del peso (Garmin en vivo) y creatina. Lo demás de Garmin se ve en su app. | ✅ (página en claude.ai) |
 | 3 | Universidad: syllabus → % de cada entrega (Claude), "Qué hacer primero" por % ÷ días, plan de estudio, cursos y checklist | ✅ (página en claude.ai) |
 | 4 | Finanzas: CSV/PDF de Wells Fargo clasificado por Claude, Zelle en vivo desde Gmail, presupuesto, suscripciones y gastos a mano | ✅ (página en claude.ai) |
-| 5 | Calendario de Google y notificaciones | pendiente |
+| 5 | Calendario de Google (lectura + bloques de estudio) y avisos al celular | ✅ (página en claude.ai + rutinas) |
 
 Lo que aún no tiene fuente real se muestra con la etiqueta **“ejemplo · fase N”**.
 
@@ -71,6 +71,18 @@ página privada en claude.ai:
   manda alertas de esas. "+ Gasto" anota efectivo o lo que no está en el banco.
   Presupuesto mensual (en `settings`), disponible por día, comparación con el mes anterior
   al mismo día, gasto por categoría y pagos que se repiten (`lib/finance.ts`).
+- **Bloques de estudio:** en "What should I study today?" cada sugerencia tiene "Apartar
+  HH:MM–HH:MM en el calendario": busca el primer hueco libre de hoy (desde ahora, entre
+  8 am y 11 pm, sin pisar tus eventos) y crea `Estudiar: …` en Google Calendar
+  (`create_event`, con aviso 10 min antes). Una llamada por toque, sin reintentos; si no hay
+  respuesta, relee el calendario y te pide revisarlo. Los bloques `Estudiar:` no cuentan como
+  entregas (`lib/notify.ts`).
+- **Avisos al celular:** dos rutinas programadas de Claude (7:47 am y 8:47 pm, hora de
+  Miami) leen la base de datos de la página y Google Calendar y mandan una notificación a la
+  app de Claude: resumen de la mañana (hoy, entregas de 3 días, tareas vencidas, presupuesto)
+  y repaso de la noche (creatina sin marcar, lo que vence mañana, tareas de hoy). Se prenden
+  y apagan desde la tarjeta "Avisos al celular" en Hoy (`settings`: `notify_morning`,
+  `notify_night`; 0 = apagado).
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no

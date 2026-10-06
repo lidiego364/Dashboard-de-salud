@@ -1,7 +1,7 @@
 // Eventos de Google Calendar: conversión de la respuesta de list_events y
 // lectura en vivo desde la página publicada en claude.ai.
 import { addDays, todayISO, TZ } from "./dates";
-import { CALENDAR_SERVER, explainMcpError, getCapability, readTool } from "./claude-runtime";
+import { CALENDAR_SERVER, explainMcpError, getCapability, readTool, type McpError } from "./claude-runtime";
 
 export type CalEvent = {
   id: string;
@@ -58,7 +58,7 @@ const DEADLINE_WORDS = /\b(exam\w*|quiz\w*|midterm|final|assignment|homework|hw|
 /** ¿Es una entrega o examen (y no una clase)? Canvas exporta las entregas con el
  *  curso entre corchetes; las clases son eventos que se repiten. Las horas de
  *  oficina también traen curso, pero no son entregas. */
-const NOT_DEADLINE = /\b(office\s*hours?|horas?\s+de\s+oficina|review\s+session|tutoring)\b/i;
+const NOT_DEADLINE = /\b(office\s*hours?|horas?\s+de\s+oficina|review\s+session|tutoring)\b|^estudiar:/i;
 
 export function isDeadline(e: CalEvent) {
   if (e.recurring || NOT_DEADLINE.test(e.title)) return false;
@@ -106,10 +106,10 @@ export function subscribeCalendar(fn: (s: CalendarState) => void) {
   return () => listeners.delete(fn);
 }
 
-async function load() {
+async function load(refresh = false) {
   const mcp = await getCapability("mcp");
   if (!mcp) return;
-  emit({ available: true, loading: true, events: [], error: null });
+  if (!refresh) emit({ available: true, loading: true, events: [], error: null });
   const today = todayISO();
   try {
     const payload = await readTool(mcp, CALENDAR_SERVER, "list_events", {
@@ -119,9 +119,51 @@ async function load() {
       timeZone: TZ,
       orderBy: "startTime",
       pageSize: 250,
-    });
-    emit({ available: true, loading: false, events: parseEvents(payload), error: null });
+    }, refresh ? 0 : undefined);
+    const events = parseEvents(payload);
+    emit({ available: true, loading: false, events, error: null });
+    void saveSnapshot(events);
   } catch (err) {
     emit({ available: true, loading: false, events: [], error: explainMcpError(err, "Google Calendar") });
+  }
+}
+
+/** Crea un evento (un toque del usuario = una llamada; nunca se reintenta) y vuelve a leer. */
+export async function createEvent(args: Record<string, unknown>) {
+  const mcp = await getCapability("mcp");
+  if (!mcp) throw new Error("Abre Diego OS dentro de claude.ai para usar tu Google Calendar.");
+  try {
+    await mcp.callTool(CALENDAR_SERVER, "create_event", args, { cache: false });
+  } catch (err) {
+    const e = err as McpError;
+    // Sin respuesta no sabemos si se creó: se relee el calendario antes de dejar reintentar.
+    if (e?.code === "server_unavailable" || e?.code === "upstream_error") void load(true);
+    throw new Error(e?.code === "server_unavailable" || e?.code === "upstream_error" ? "No sé si se creó: revisa tu calendario antes de volver a intentarlo." : explainMcpError(err, "Google Calendar"));
+  }
+  await load(true);
+}
+
+/** Copia compacta de las próximas 3 semanas en la base de la página: la leen los avisos al
+ *  celular (rutinas de Claude), que no tienen el conector de Calendar. */
+let lastSnapshot = "";
+async function saveSnapshot(events: CalEvent[]) {
+  const db = await getCapability("db");
+  if (!db) return;
+  const compact = events.map((e) => ({
+    date: e.date,
+    time: e.time,
+    end: e.endTime,
+    title: e.title,
+    course: e.course,
+    recurring: e.recurring,
+    deadline: isDeadline(e),
+  }));
+  const json = JSON.stringify(compact);
+  if (json === lastSnapshot) return;
+  try {
+    await db.doc("cal_cache/upcoming").set({ synced_at: new Date().toISOString(), events: compact });
+    lastSnapshot = json;
+  } catch {
+    // Solo afecta a los avisos; la página sigue igual.
   }
 }

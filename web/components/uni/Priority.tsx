@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/Cards";
 import { useData } from "@/components/DataProvider";
-import { relativeDays, shortDate, todayISO } from "@/lib/dates";
+import { hhmm, nowHM, relativeDays, shortDate, todayISO } from "@/lib/dates";
 import { explainSampleError, getCapability, type Sample } from "@/lib/claude-runtime";
 import { checklistPrompt, fmtWeight, parseChecklist, studyPlan, type RankedItem } from "@/lib/uni";
 import type { AssignmentMeta } from "@/lib/types";
+import { useCalendar } from "@/components/useCalendar";
+import { createEvent } from "@/lib/calendar";
+import { freeSlot, studyEventArgs, studyTitle } from "@/lib/notify";
 
 const fmtMin = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m} min`);
 
@@ -178,15 +181,57 @@ export function StudyPlanCard({ items }: { items: RankedItem[] }) {
       {plan.map((s) => (
         <div key={s.key} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--color-neutral-900)" }}>
           <div style={{ fontSize: 13, color: "var(--color-accent-300)", width: 56, flex: "none" }}>{fmtMin(s.minutes)}</div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, overflowWrap: "anywhere" }}>{s.title}</div>
             <div style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>
               {s.course ? `${s.course} · ` : ""}
               {s.why}
             </div>
+            <BlockButton item={s} />
           </div>
         </div>
       ))}
     </Card>
+  );
+}
+
+/** "Apartar en el calendario": crea el bloque de estudio en el primer hueco libre de hoy. */
+function BlockButton({ item }: { item: ReturnType<typeof studyPlan>[number] }) {
+  const cal = useCalendar();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (!cal.available || cal.loading || cal.error) return null;
+  const today = todayISO();
+  const existing = cal.events.find((e) => e.date === today && e.title === studyTitle(item.title));
+  if (existing)
+    return (
+      <div style={{ fontSize: 12, color: "var(--color-accent-300)", marginTop: 6 }}>
+        <i className="ph ph-calendar-check" /> En tu calendario hoy {existing.time ? `a las ${hhmm(existing.time)}` : ""}
+      </div>
+    );
+  const slot = freeSlot(cal.events, today, item.minutes, nowHM());
+  if (!slot) return <div style={{ fontSize: 12, color: "var(--color-neutral-500)", marginTop: 6 }}>Hoy ya no queda un hueco de {fmtMin(item.minutes)} en tu calendario.</div>;
+  const go = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await createEvent(studyEventArgs(item, today, slot));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+      <button className="btn btn-ghost" style={{ fontSize: 12, padding: "2px 8px" }} disabled={busy} onClick={go}>
+        <i className="ph ph-calendar-plus" /> {busy ? "Apartando…" : `Apartar ${hhmm(slot.start)}–${hhmm(slot.end)} en el calendario`}
+      </button>
+      {err && (
+        <span role="alert" style={{ fontSize: 12, color: "var(--color-accent-300)" }}>
+          {err}
+        </span>
+      )}
+    </div>
   );
 }

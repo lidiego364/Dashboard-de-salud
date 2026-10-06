@@ -16,6 +16,7 @@ import { useCalendar } from "@/components/useCalendar";
 import { DeadlineList } from "@/components/DeadlineList";
 import { withWeights } from "@/lib/uni";
 import { CreatineToday } from "@/components/health/Logs";
+import { NotifyCard } from "@/components/NotifyCard";
 
 export default function HoyPage() {
   const { tasks, reminders, courses, assignment_meta, transactions, loading, mode, loadExample } = useData();
@@ -272,6 +273,7 @@ export default function HoyPage() {
 
             <GoalsCard />
             <RemindersCard limit={5} />
+            <NotifyCard />
           </>
         }
       />
