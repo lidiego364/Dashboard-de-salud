@@ -1,6 +1,5 @@
 import type { NewRow, RowPatch, TableName, Tables } from "./types";
 import { getBrowserClient } from "./supabase/client";
-import { exampleData } from "./example-data";
 import { newId } from "./id";
 import type { Db } from "./claude-runtime";
 
@@ -100,9 +99,9 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
       const raw = localStorage.getItem(KEY);
       if (raw) return (mem = migrate(JSON.parse(raw) as Backup));
     } catch {}
-    const seeded = exampleData();
-    write(seeded);
-    return seeded;
+    const empty = migrate({ tasks: [], goals: [], reminders: [] } as unknown as Backup);
+    write(empty);
+    return empty;
   };
   const write = (db: Backup) => {
     mem = db;
@@ -145,6 +144,34 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
 
 // El objetivo de peso del ejemplo ("Llegar a 85 kg") ahora se calcula con
 // Garmin; se quita solo si sigue idéntico al sembrado (nunca uno del usuario).
+// Las versiones anteriores llenaban el navegador con las tareas del prototipo.
+// Se quitan solo las que siguen intactas (mismo título, guardadas todas juntas y sin
+// tocar); lo que hayas editado o marcado se queda.
+const PROTOTYPE = {
+  tasks: ["SQL Lab 3 · Joins", "Repasar capítulo 6 de estadística", "Gym · Upper A", "Llegar a 10k pasos", "Gym · Lower A", "Cancelar prueba de Max", "Enviar disponibilidad de la semana", "Aplicar a 2 internships de data analytics", "Meal prep para lunes a miércoles", "Llamar a mamá"],
+  goals: ["GPA 3.7 este semestre|Promedio actual 3.62", "Internship de data analytics|6 / 20 aplicaciones", "Leer 1 libro al mes|40 / 280 páginas"],
+  reminders: ["Pagar tarjeta de crédito", "Cita con el dentista", "Renovar parking FIU", "Enviar horas de la quincena", "Entrevista con Ryder (tentativa)", "Cumpleaños de Andrés"],
+};
+export function withoutPrototypeRows(db: Backup): Backup {
+  const key = (t: string, r: { title: string; status?: string | null }) => (t === "goals" ? `${r.title}|${r.status}` : r.title);
+  // El lote del prototipo se guardó con el mismo created_at (o en el mismo par de segundos).
+  const perMinute = new Map<string, number>();
+  for (const t of ["tasks", "goals", "reminders"] as const)
+    for (const r of db[t] as { title: string; status?: string | null; created_at: string }[])
+      if (PROTOTYPE[t].includes(key(t, r))) perMinute.set(r.created_at.slice(0, 16), (perMinute.get(r.created_at.slice(0, 16)) ?? 0) + 1);
+  const batch = new Set([...perMinute].filter(([, n]) => n >= 3).map(([m]) => m));
+  const isProto = (t: "tasks" | "goals" | "reminders", r: { title: string; status?: string | null; created_at: string; done_at?: string | null }) =>
+    PROTOTYPE[t].includes(key(t, r)) && batch.has(r.created_at.slice(0, 16)) && (t === "goals" || !r.done_at || r.title === "Repasar capítulo 6 de estadística");
+  const hits = (["tasks", "goals", "reminders"] as const).reduce((n, t) => n + (db[t] as never[]).filter((r) => isProto(t, r)).length, 0);
+  if (hits < 5) return db; // un par de coincidencias sueltas son tuyas, no del prototipo
+  return {
+    ...db,
+    tasks: db.tasks.filter((r) => !isProto("tasks", r)),
+    goals: db.goals.filter((r) => !isProto("goals", r)),
+    reminders: db.reminders.filter((r) => !isProto("reminders", r)),
+  };
+}
+
 function migrate(db: Backup): Backup {
   db = {
     ...db,
@@ -156,8 +183,9 @@ function migrate(db: Backup): Backup {
     settings: db.settings ?? [],
   };
   const goals = db.goals.filter((g) => !(g.title === "Llegar a 85 kg" && g.status === "86.8 kg · faltan 1.8"));
-  if (goals.length === db.goals.length) return db;
-  const next = { ...db, goals };
+  const clean = withoutPrototypeRows({ ...db, goals });
+  if (clean.goals.length === db.goals.length && clean.tasks.length === db.tasks.length && clean.reminders.length === db.reminders.length) return db;
+  const next = clean;
   try {
     localStorage.setItem("diego-os:v1", JSON.stringify(next));
   } catch {}

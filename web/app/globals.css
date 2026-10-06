@@ -266,11 +266,6 @@ a:hover { color: var(--color-accent-400); }
 }
 .tab-link:hover { color: var(--color-text); }
 .tab-link[aria-current="page"] { color: var(--color-text); box-shadow: inset 0 -2px 0 var(--color-accent); }
-.demo-tag {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 10px; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--color-neutral-500);
-  border: 1px dashed var(--color-neutral-700); border-radius: 6px; padding: 1px 6px;
-}
 .dialog-backdrop { z-index: 50; }
 .field + .field { margin-top: 10px; }
 .field-row { display: flex; gap: 10px; }

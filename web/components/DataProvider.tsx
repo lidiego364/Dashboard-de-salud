@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { exampleRows } from "@/lib/example-data";
 import { claudeDbStore, localStore, parseBackup, supabaseStore, type Backup, type Store } from "@/lib/store";
 import { inClaude, getCapability } from "@/lib/claude-runtime";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -18,7 +17,6 @@ type DataCtx = Rows & {
   create: <T extends TableName>(table: T, row: NewRow<T>) => Promise<void>;
   patch: <T extends TableName>(table: T, id: string, patch: RowPatch<T>) => Promise<void>;
   remove: (table: TableName, id: string) => Promise<void>;
-  loadExample: () => Promise<void>;
   /** Solo sin Supabase: respaldo de todos los datos en un JSON. */
   exportBackup: () => string;
   importBackup: (json: string) => Promise<void>;
@@ -108,17 +106,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loadExample = async () => {
-    if (!store) return;
-    const ex = exampleRows();
-    try {
-      for (const t of TABLES) for (const row of ex[t]) await store.insert(t, row as never);
-      await reload();
-    } catch (e) {
-      fail(e);
-    }
-  };
-
   const exportBackup = () => JSON.stringify({ exported_at: new Date().toISOString(), ...rows } satisfies Backup & { exported_at: string }, null, 2);
 
   const importBackup = async (json: string) => {
@@ -145,7 +132,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         create,
         patch,
         remove,
-        loadExample,
         exportBackup,
         importBackup,
       }}

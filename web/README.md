@@ -14,7 +14,7 @@ funcionando igual.
 | 4 | Finanzas: CSV/PDF de Wells Fargo clasificado por Claude, Zelle en vivo desde Gmail, presupuesto, suscripciones y gastos a mano | ✅ (página en claude.ai) |
 | 5 | Calendario de Google (lectura + bloques de estudio) y avisos al celular | ✅ (página en claude.ai + rutinas) |
 
-Lo que aún no tiene fuente real se muestra con la etiqueta **“ejemplo · fase N”**.
+No hay datos inventados: todo sale de tus conectores (Garmin, Google Calendar, Gmail), de lo que importas (CSV/PDF, syllabus) o de lo que escribes. Lo que no tiene datos todavía muestra cómo conseguirlos.
 
 ## Versión de un solo archivo (`diego-os.html`)
 
@@ -98,7 +98,7 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Sin variables de entorno corre en **modo demo**: sin login y guardando todo en el
+Sin variables de entorno corre en **modo local**: sin login y guardando todo en el
 navegador (localStorage), con las tareas del prototipo precargadas.
 
 ## Poner en marcha con Supabase (una sola vez)
@@ -113,8 +113,7 @@ navegador (localStorage), con las tareas del prototipo precargadas.
 5. **Project Settings → API Keys**: copia la *Project URL* y la *Publishable key*.
 6. En local: `cp .env.example .env.local` y pega ambos valores.
 
-La primera vez que entres la cuenta estará vacía: el botón **Cargar ejemplo** mete las
-tareas del prototipo para que tengas algo con qué jugar (bórralas cuando quieras).
+La primera vez que entres la cuenta estará vacía: agrega tus tareas, objetivos y recordatorios.
 
 ## Publicar en Vercel
 
@@ -130,7 +129,6 @@ tareas del prototipo para que tengas algo con qué jugar (bórralas cuando quier
 - `proxy.ts` — refresca la sesión de Supabase y manda a `/login` si no hay sesión.
 - `components/DataProvider.tsx` — carga tareas, objetivos y recordatorios y aplica
   los cambios al instante (se revierten si Supabase falla).
-- `lib/store.ts` — dos backends con la misma interfaz: Supabase o localStorage (demo).
-- `lib/demo.ts` — pesos de ejemplo para Salud cuando no hay datos de Garmin.
+- `lib/store.ts` — dos backends con la misma interfaz: Supabase o localStorage (local). Las versiones anteriores llenaban el navegador con tareas del prototipo; `withoutPrototypeRows` las quita al abrir y deja lo que editaste.
 - `app/globals.css` — tokens y clases del design system del prototipo.
 - Fechas siempre en la zona horaria de Miami (`lib/dates.ts`).

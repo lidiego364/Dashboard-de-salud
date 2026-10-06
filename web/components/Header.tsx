@@ -98,7 +98,7 @@ export function Header() {
           <div style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: 6 }}>{date}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {health?.live && (
+          {health?.view && (
             <span
               className="tag tag-neutral"
               style={{ gap: 6 }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Columns, DemoTag, Loading, PageTitle } from "@/components/Cards";
+import { Card, Columns, Loading, PageTitle } from "@/components/Cards";
 import { CreatineCard } from "@/components/health/Logs";
 import { useHealth } from "@/components/useHealth";
 import { WeightChart } from "@/components/WeightChart";
@@ -9,8 +9,8 @@ import { WeightChart } from "@/components/WeightChart";
 // entrenamientos) se ve en la app de Garmin.
 export default function SaludPage() {
   const health = useHealth();
-  if (!health || (health.source === "demo" && health.loading)) return <Loading />;
-  if (health.unavailable)
+  if (!health || (!health.view && health.loading)) return <Loading />;
+  if (!health.view)
     return (
       <>
         <PageTitle title="Salud · Weight cut" />
@@ -20,7 +20,7 @@ export default function SaludPage() {
               <i className="ph ph-watch" style={{ fontSize: 22, color: "var(--color-accent)" }} />
               <div style={{ flex: 1, minWidth: 220 }}>
                 <div style={{ fontSize: 15 }}>No pude leer tus pesajes de Garmin</div>
-                <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{health.error}</div>
+                <div style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>{health.reason}</div>
               </div>
             </Card>
           }
@@ -28,12 +28,11 @@ export default function SaludPage() {
         />
       </>
     );
-  const { view: h, live } = health;
+  const h = health.view;
 
   return (
     <>
       <PageTitle title="Salud · Weight cut" sub={h.subtitle}>
-        {!live && <DemoTag phase="fase 2" />}
       </PageTitle>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 16, marginBottom: 16 }}>

@@ -35,7 +35,9 @@ export default function FinanzasPage() {
   const go = (m: string) => (setYm(m), setFilter(null));
 
   const sub = !transactions.length
-    ? "Importa tu estado de cuenta para empezar"
+    ? fromGmail > 0
+      ? `${fromGmail} Zelle de tu Gmail · falta importar el CSV para las compras con tarjeta`
+      : "Importa tu estado de cuenta para empezar"
     : [`${transactions.length} movimientos`, last && `importado hasta el ${shortDate(last)}`, fromGmail > 0 && `${fromGmail} ${fromGmail === 1 ? "Zelle nuevo" : "Zelle nuevos"} de Gmail`].filter(Boolean).join(" · ");
 
   return (
@@ -47,10 +49,19 @@ export default function FinanzasPage() {
         </div>
       </PageTitle>
 
-      {!transactions.length ? (
+      {!txs.length ? (
         <EmptyState />
       ) : (
         <>
+          {!transactions.length && (
+            <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+              <i className="ph ph-info" style={{ fontSize: 20, color: "var(--color-accent)" }} />
+              <div style={{ flex: 1, minWidth: 220, fontSize: 14, lineHeight: 1.45 }}>
+                Por ahora solo ves tus Zelle de los últimos 60 días (alertas de Wells Fargo en Gmail). Las compras con tarjeta aparecen cuando
+                importes el CSV: wellsfargo.com → tu cuenta → <b>Descargar actividad</b> → <b>Separado por comas (CSV)</b>.
+              </div>
+            </Card>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             <button className="btn btn-ghost btn-icon" aria-label="Mes anterior" disabled={ym <= first} onClick={() => go(prevMonth(ym))}>
               <i className="ph ph-caret-left" />

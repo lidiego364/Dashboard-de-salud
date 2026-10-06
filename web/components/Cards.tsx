@@ -17,14 +17,6 @@ export function Card({ children, style }: { children: React.ReactNode; style?: R
   );
 }
 
-export function DemoTag({ phase }: { phase: string }) {
-  return (
-    <span className="demo-tag" title={`Datos de ejemplo. Se conecta en la ${phase}.`}>
-      <i className="ph ph-flask" /> ejemplo · {phase}
-    </span>
-  );
-}
-
 export function KickerRow({ kicker, children }: { kicker: string; children?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -47,7 +39,7 @@ export function GoalsCard({ area, kicker = "Objetivos actuales" }: { area?: Area
   const health = useHealth();
   const [adding, setAdding] = useState(false);
   const list = goals.filter((g) => !area || g.area === area);
-  const hg = health && !health.unavailable && (!area || area === "salud") ? health.view.goal : null;
+  const hg = health?.view && (!area || area === "salud") ? health.view.goal : null;
   return (
     <Card style={{ gap: 12 }}>
       <KickerRow kicker={kicker}>

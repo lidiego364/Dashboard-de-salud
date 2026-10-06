@@ -1,9 +1,8 @@
 // Salud = tendencia del peso, a partir de una "foto" de Garmin. En la versión
 // de un solo archivo la foto se incrusta como window.__GARMIN__; en claude.ai se
-// lee en vivo (lib/health-live.ts); si no hay ninguna se usan datos de ejemplo.
+// lee en vivo (lib/health-live.ts); si no hay ninguna no se muestran números.
 // (Lo demás de Garmin —sueño, pasos, entrenamientos— se ve en la app de Garmin.)
 import { addDays, daysBetween, shortDate, todayISO, TZ } from "./dates";
-import { demoSnapshot } from "./demo";
 
 /** Meta de peso (se compara contra la tendencia de 7 días, no contra un pesaje suelto). */
 export const HEALTH_GOAL = { kg: 84, by: "2026-10-31" };
@@ -20,9 +19,8 @@ declare global {
   }
 }
 
-export function getSnapshot(): { snap: GarminSnapshot; live: boolean } {
-  const g = typeof window !== "undefined" ? window.__GARMIN__ : undefined;
-  return g ? { snap: g, live: true } : { snap: demoSnapshot(), live: false };
+export function getSnapshot(): GarminSnapshot | null {
+  return (typeof window !== "undefined" && window.__GARMIN__) || null;
 }
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);

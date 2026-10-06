@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useData } from "@/components/DataProvider";
 import { TaskDialog } from "@/components/forms";
 import { AddButton, TaskItem } from "@/components/items";
-import { Card, Columns, DemoTag, GoalsCard, GoToButton, KickerRow, Loading, RemindersCard } from "@/components/Cards";
+import { Card, Columns, GoalsCard, GoToButton, KickerRow, Loading, RemindersCard } from "@/components/Cards";
 import { dayNum, dowShort, greeting, nowHM, relativeDays, shortDate, todayISO } from "@/lib/dates";
 import { tasksForToday, upcomingDeadlines, weekAhead } from "@/lib/selectors";
 import { AREA_KEYS, AREAS, type Area } from "@/lib/types";
@@ -19,7 +19,7 @@ import { CreatineToday } from "@/components/health/Logs";
 import { NotifyCard } from "@/components/NotifyCard";
 
 export default function HoyPage() {
-  const { tasks, reminders, courses, assignment_meta, transactions, loading, mode, loadExample } = useData();
+  const { tasks, reminders, courses, assignment_meta, transactions, loading } = useData();
   const zelle = useZelle();
   const [adding, setAdding] = useState<{ date: string | null } | null>(null);
   const health = useHealth();
@@ -37,7 +37,6 @@ export default function HoyPage() {
   const nextEvent = agenda.find((e) => e.time && (e.endTime ?? e.time) > now);
   // % de la nota según los syllabus; las marcadas como hechas en Universidad no aparecen.
   const deadlines = withWeights(upcomingDeadlines(tasks, today, 200, cal.events, now), courses, assignment_meta).slice(0, 5);
-  const empty = !tasks.length && mode !== "demo";
   const finTxs = withZelle(transactions, zelle.items);
 
   const summary = [
@@ -58,18 +57,6 @@ export default function HoyPage() {
         <h1 style={{ fontSize: 34, margin: 0 }}>{greeting()}, Diego</h1>
         <div style={{ fontSize: 14, color: "var(--color-neutral-400)" }}>{summary}</div>
       </div>
-
-      {empty && (
-        <Card style={{ marginBottom: 16, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <i className="ph ph-sparkle" style={{ fontSize: 22, color: "var(--color-accent)" }} />
-          <div style={{ flex: 1, minWidth: 220, fontSize: 14 }}>
-            Tu cuenta está vacía. Puedes empezar a agregar tareas o cargar las del prototipo para probar.
-          </div>
-          <button className="btn btn-secondary" onClick={loadExample}>
-            Cargar ejemplo
-          </button>
-        </Card>
-      )}
 
       <Columns
         main={
@@ -247,18 +234,16 @@ export default function HoyPage() {
 
             <Card>
               <KickerRow kicker="Salud">
-                {health.live ? (
+                {health.view ? (
                   <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Garmin · {health.view.syncedLabel}</span>
-                ) : health.loading ? (
-                  <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Leyendo Garmin…</span>
                 ) : (
-                  !health.unavailable && <DemoTag phase="fase 2" />
+                  health.loading && <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Leyendo Garmin…</span>
                 )}
                 <GoToButton href="/salud" label="Detalle" />
               </KickerRow>
-              {health.unavailable ? (
+              {!health.view ? (
                 <>
-                  <div className="empty">{health.error}</div>
+                  <div className="empty">{health.loading ? "Leyendo tus pesajes…" : health.reason}</div>
                   <CreatineToday />
                 </>
               ) : (

@@ -1,5 +1,5 @@
 // Fuente única de los datos de salud para toda la página:
-// 1) arranca con la foto incrustada (window.__GARMIN__) o con datos de ejemplo;
+// 1) arranca con la foto incrustada (window.__GARMIN__), si hay;
 // 2) si la página corre en claude.ai, pide los datos frescos al conector de
 //    Garmin del propio usuario y reemplaza la foto.
 import { todayISO } from "./dates";
@@ -8,9 +8,9 @@ import { getSnapshot, type GarminSnapshot } from "./health";
 import { explainMcpError, GARMIN_SERVER, getCapability, readTool } from "./claude-runtime";
 
 export type HealthState = {
-  snap: GarminSnapshot;
-  /** "live": recién leído de Garmin · "baked": foto incrustada · "demo": ejemplo */
-  source: "live" | "baked" | "demo";
+  snap: GarminSnapshot | null;
+  /** "live": recién leído de Garmin · "baked": foto incrustada · "none": sin datos */
+  source: "live" | "baked" | "none";
   loading: boolean;
   /** Por qué no se pudo leer Garmin en vivo (texto para mostrar). */
   error: string | null;
@@ -27,8 +27,8 @@ function emit(next: HealthState) {
 
 export function getHealthState(): HealthState {
   if (!state) {
-    const { snap, live } = getSnapshot();
-    state = { snap, source: live ? "baked" : "demo", loading: false, error: null };
+    const snap = getSnapshot();
+    state = { snap, source: snap ? "baked" : "none", loading: false, error: null };
   }
   return state;
 }
@@ -44,7 +44,7 @@ export function subscribeHealth(fn: (s: HealthState) => void) {
 
 async function refreshFromGarmin() {
   const mcp = await getCapability("mcp");
-  if (!mcp) return; // fuera de claude.ai: se queda con la foto o el ejemplo
+  if (!mcp) return; // fuera de claude.ai: se queda con la foto (o sin datos)
   emit({ ...getHealthState(), loading: true });
 
   const calls = garminCalls(todayISO());

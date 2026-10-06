@@ -16,13 +16,16 @@ export function useHealth() {
     };
   }, []);
   if (!hs) return null;
+  const view = hs.snap ? healthView(hs.snap) : null;
   return {
-    view: healthView(hs.snap),
-    live: hs.source !== "demo",
+    /** null = todavía no hay pesajes reales (nunca se muestran números inventados). */
+    view,
+    live: view !== null,
     source: hs.source,
     loading: hs.loading,
     error: hs.error,
-    /** Falló la lectura de Garmin y no hay foto: no mostrar números de ejemplo como si fueran reales. */
-    unavailable: hs.source === "demo" && hs.error !== null,
+    /** Sin pesajes y sin lectura en curso: se explica por qué. */
+    unavailable: view === null && !hs.loading,
+    reason: hs.error ?? "Todavía no hay pesajes de Garmin. Abre Diego OS en claude.ai para leerlos.",
   };
 }
