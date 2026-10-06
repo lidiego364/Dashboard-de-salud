@@ -33,7 +33,7 @@ export function exampleRows() {
     { area: "trabajo", title: "Entrevista con Ryder (tentativa)", icon: "ph ph-calendar-check", remind_on: d(10), done_at: null },
     { area: "personal", title: "Cumpleaños de Andrés", icon: "ph ph-gift", remind_on: d(14), done_at: null },
   ];
-  return { tasks, goals, reminders, creatine: [] as NewRow<"creatine">[], courses: [] as NewRow<"courses">[], assignment_meta: [] as NewRow<"assignment_meta">[] };
+  return { tasks, goals, reminders, creatine: [] as NewRow<"creatine">[], courses: [] as NewRow<"courses">[], assignment_meta: [] as NewRow<"assignment_meta">[], transactions: [] as NewRow<"transactions">[], fin_rules: [] as NewRow<"fin_rules">[], settings: [] as NewRow<"settings">[] };
 }
 
 export function exampleData() {
@@ -47,5 +47,8 @@ export function exampleData() {
     creatine: [],
     courses: [],
     assignment_meta: [],
+    transactions: [],
+    fin_rules: [],
+    settings: [],
   };
 }

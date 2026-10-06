@@ -78,7 +78,7 @@ export function claudeDbStore(db: Db): Store & { replaceAll(data: Backup): Promi
 }
 
 // Postgres devuelve numeric como string.
-const NUMERIC = ["progress", "grams"];
+const NUMERIC = ["progress", "grams", "amount", "value"];
 function normalizeNumbers<R extends Record<string, unknown>>(r: R): R {
   const out: Record<string, unknown> = { ...r };
   for (const k of NUMERIC) if (k in out && out[k] !== null) out[k] = Number(out[k]);
@@ -146,7 +146,15 @@ export function localStore(): Store & { replaceAll(db: Backup): Promise<void> } 
 // El objetivo de peso del ejemplo ("Llegar a 85 kg") ahora se calcula con
 // Garmin; se quita solo si sigue idéntico al sembrado (nunca uno del usuario).
 function migrate(db: Backup): Backup {
-  db = { ...db, creatine: db.creatine ?? [], courses: db.courses ?? [], assignment_meta: db.assignment_meta ?? [] };
+  db = {
+    ...db,
+    creatine: db.creatine ?? [],
+    courses: db.courses ?? [],
+    assignment_meta: db.assignment_meta ?? [],
+    transactions: db.transactions ?? [],
+    fin_rules: db.fin_rules ?? [],
+    settings: db.settings ?? [],
+  };
   const goals = db.goals.filter((g) => !(g.title === "Llegar a 85 kg" && g.status === "86.8 kg · faltan 1.8"));
   if (goals.length === db.goals.length) return db;
   const next = { ...db, goals };
@@ -156,7 +164,7 @@ function migrate(db: Backup): Backup {
   return next;
 }
 
-export const ALL_TABLES = ["tasks", "goals", "reminders", "creatine", "courses", "assignment_meta"] as const;
+export const ALL_TABLES = ["tasks", "goals", "reminders", "creatine", "courses", "assignment_meta", "transactions", "fin_rules", "settings"] as const;
 
 /** Valida un respaldo JSON antes de importarlo. Las tablas que un respaldo viejo
  *  no trae (creatina, cursos…) se importan vacías. */

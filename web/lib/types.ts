@@ -79,6 +79,44 @@ export type AssignmentMeta = {
   created_at: string;
 };
 
+/** Categorías de gasto (las mismas para todo: CSV, PDF, Zelle y gastos a mano). */
+export const FIN_CATEGORIES = {
+  comida: { label: "Restaurantes y delivery", icon: "ph ph-fork-knife" },
+  super: { label: "Supermercado", icon: "ph ph-shopping-cart" },
+  transporte: { label: "Transporte", icon: "ph ph-car" },
+  educacion: { label: "Educación", icon: "ph ph-books" },
+  compras: { label: "Compras", icon: "ph ph-shopping-bag" },
+  entretenimiento: { label: "Entretenimiento", icon: "ph ph-film-slate" },
+  suscripciones: { label: "Suscripciones", icon: "ph ph-repeat" },
+  salud: { label: "Salud y gym", icon: "ph ph-barbell" },
+  servicios: { label: "Casa y servicios", icon: "ph ph-house" },
+  transferencias: { label: "Zelle y transferencias", icon: "ph ph-arrows-left-right" },
+  otros: { label: "Otros", icon: "ph ph-dots-three" },
+  ingreso: { label: "Ingresos", icon: "ph ph-arrow-down-left" },
+} as const;
+export type FinCategory = keyof typeof FIN_CATEGORIES;
+export const FIN_CATEGORY_KEYS = Object.keys(FIN_CATEGORIES) as FinCategory[];
+
+/** Un movimiento de dinero. amount < 0 = gasto, > 0 = ingreso. */
+export type Transaction = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  description: string; // texto original del banco
+  merchant: string; // nombre limpio
+  category: FinCategory;
+  source: "csv" | "pdf" | "manual";
+  /** Para no duplicar al importar dos veces: fecha|monto|descripción normalizada. */
+  hash: string;
+  created_at: string;
+};
+
+/** Corrección de categoría que Diego hizo para un comercio: se aplica a futuras importaciones. */
+export type FinRule = { id: string; merchant_key: string; category: FinCategory; created_at: string };
+
+/** Ajustes sueltos (p. ej. presupuesto mensual). */
+export type Setting = { id: string; key: string; value: number; created_at: string };
+
 export type Tables = {
   tasks: Task;
   goals: Goal;
@@ -86,6 +124,9 @@ export type Tables = {
   creatine: Creatine;
   courses: Course;
   assignment_meta: AssignmentMeta;
+  transactions: Transaction;
+  fin_rules: FinRule;
+  settings: Setting;
 };
 export type TableName = keyof Tables;
 export type NewRow<T extends TableName> = Omit<Tables[T], "id" | "created_at">;

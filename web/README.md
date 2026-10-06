@@ -11,7 +11,7 @@ funcionando igual.
 | 1 | Diseño completo, login, tareas/objetivos/recordatorios guardados en Supabase | ✅ |
 | 2 | Salud: tendencia del peso (Garmin en vivo) y creatina. Lo demás de Garmin se ve en su app. | ✅ (página en claude.ai) |
 | 3 | Universidad: syllabus → % de cada entrega (Claude), "Qué hacer primero" por % ÷ días, plan de estudio, cursos y checklist | ✅ (página en claude.ai) |
-| 4 | Finanzas: PocketSmith o CSV del banco | pendiente |
+| 4 | Finanzas: CSV/PDF de Wells Fargo clasificado por Claude, Zelle en vivo desde Gmail, presupuesto, suscripciones y gastos a mano | ✅ (página en claude.ai) |
 | 5 | Calendario de Google y notificaciones | pendiente |
 
 Lo que aún no tiene fuente real se muestra con la etiqueta **“ejemplo · fase N”**.
@@ -58,6 +58,19 @@ página privada en claude.ai:
   "Qué hacer primero" ordena por % ÷ días, "What should I study today?" reparte el
   tiempo estimado entre los días que faltan, y Deadlines FIU muestra el %. "Armar
   checklist con Claude" y "Hecho" se guardan por entrega (`assignment_meta`).
+- **Finanzas:** "Importar estado de cuenta" acepta el CSV de Wells Fargo (wellsfargo.com →
+  tu cuenta → Descargar actividad → *Separado por comas*), un CSV genérico con
+  fecha/descripción/monto o débito/crédito, o el PDF del estado mensual (pdf.js + Claude saca
+  los movimientos). No se duplica nada al reimportar (`hash` por fecha, monto y descripción).
+  Los Zelle y transferencias se clasifican solos; lo demás lo clasifica Claude (modelo
+  rápido, en tandas de 80). Cambiar la categoría de un movimiento la cambia en todos los
+  del mismo comercio y lo recuerda para la próxima importación (`fin_rules`).
+  Con el conector **Gmail** (solo `search_threads`) lee las alertas de Zelle de
+  `alerts@notify.wellsfargo.com` de los últimos 60 días y suma las que son posteriores al
+  último import; las compras con tarjeta solo llegan con el CSV porque Wells Fargo no
+  manda alertas de esas. "+ Gasto" anota efectivo o lo que no está en el banco.
+  Presupuesto mensual (en `settings`), disponible por día, comparación con el mes anterior
+  al mismo día, gasto por categoría y pagos que se repiten (`lib/finance.ts`).
 - **Tareas sincronizadas:** tareas, objetivos y recordatorios viven en la base de datos de
   la página, así que se ven igual en el celular y en la compu.
 - Si Garmin falla, la página explica cómo arreglarlo (reconectar, dar permiso…) y no
@@ -106,6 +119,6 @@ tareas del prototipo para que tengas algo con qué jugar (bórralas cuando quier
 - `components/DataProvider.tsx` — carga tareas, objetivos y recordatorios y aplica
   los cambios al instante (se revierten si Supabase falla).
 - `lib/store.ts` — dos backends con la misma interfaz: Supabase o localStorage (demo).
-- `lib/demo.ts` — datos estáticos del prototipo que se irán reemplazando por fase.
+- `lib/demo.ts` — pesos de ejemplo para Salud cuando no hay datos de Garmin.
 - `app/globals.css` — tokens y clases del design system del prototipo.
 - Fechas siempre en la zona horaria de Miami (`lib/dates.ts`).

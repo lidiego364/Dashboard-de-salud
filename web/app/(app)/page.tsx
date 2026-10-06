@@ -8,7 +8,9 @@ import { Card, Columns, DemoTag, GoalsCard, GoToButton, KickerRow, Loading, Remi
 import { dayNum, dowShort, greeting, nowHM, relativeDays, shortDate, todayISO } from "@/lib/dates";
 import { tasksForToday, upcomingDeadlines, weekAhead } from "@/lib/selectors";
 import { AREA_KEYS, AREAS, type Area } from "@/lib/types";
-import { DEMO } from "@/lib/demo";
+import { BudgetCard, monthName } from "@/components/fin/Finance";
+import { useZelle } from "@/components/useZelle";
+import { withZelle } from "@/lib/finance";
 import { useHealth } from "@/components/useHealth";
 import { useCalendar } from "@/components/useCalendar";
 import { DeadlineList } from "@/components/DeadlineList";
@@ -16,7 +18,8 @@ import { withWeights } from "@/lib/uni";
 import { CreatineToday } from "@/components/health/Logs";
 
 export default function HoyPage() {
-  const { tasks, reminders, courses, assignment_meta, loading, mode, loadExample } = useData();
+  const { tasks, reminders, courses, assignment_meta, transactions, loading, mode, loadExample } = useData();
+  const zelle = useZelle();
   const [adding, setAdding] = useState<{ date: string | null } | null>(null);
   const health = useHealth();
   const cal = useCalendar();
@@ -34,6 +37,7 @@ export default function HoyPage() {
   // % de la nota según los syllabus; las marcadas como hechas en Universidad no aparecen.
   const deadlines = withWeights(upcomingDeadlines(tasks, today, 200, cal.events, now), courses, assignment_meta).slice(0, 5);
   const empty = !tasks.length && mode !== "demo";
+  const finTxs = withZelle(transactions, zelle.items);
 
   const summary = [
     pending === 0 ? "Nada pendiente hoy" : `${pending} ${pending === 1 ? "tarea pendiente" : "tareas pendientes"} hoy`,
@@ -234,21 +238,10 @@ export default function HoyPage() {
             </Card>
 
             <Card style={{ gap: 8 }}>
-              <KickerRow kicker={`Presupuesto · ${DEMO.budget.month}`}>
-                <DemoTag phase="fase 4" />
+              <KickerRow kicker={`Presupuesto · ${monthName(today.slice(0, 7))}`}>
                 <GoToButton href="/finanzas" label="Finanzas" />
               </KickerRow>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em" }}>${(DEMO.budget.total - DEMO.budget.spent).toLocaleString("en-US")}</span>
-                <span style={{ fontSize: 13, color: "var(--color-neutral-400)" }}>restantes de ${DEMO.budget.total.toLocaleString("en-US")}</span>
-              </div>
-              <div style={{ height: 6, borderRadius: 3, background: "var(--color-neutral-800)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(DEMO.budget.spent / DEMO.budget.total) * 100}%`, background: "var(--color-accent)" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--color-neutral-500)" }}>
-                <span>Gastado ${DEMO.budget.spent}</span>
-                <span>≈ ${DEMO.budget.perDay}/día disponible</span>
-              </div>
+              <BudgetCard txs={finTxs} imported={transactions.length > 0} />
             </Card>
 
             <Card>
