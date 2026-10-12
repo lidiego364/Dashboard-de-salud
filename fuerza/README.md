@@ -18,6 +18,16 @@ Las rutinas se definen en [`programa.js`](programa.js). Para cargar un programa 
 
 Todo se guarda en el propio dispositivo: `localStorage` para los registros e IndexedDB para las fotos. Internamente se usan kg, así que alternar kg/lb no mezcla unidades. Desde Ajustes (toca tu inicial en *Hoy*) puedes exportar o importar una copia JSON.
 
+## Publicación
+
+Cada push a `main` que toque `fuerza/` la publica en GitHub Pages con el workflow [`pages-fuerza.yml`](../.github/workflows/pages-fuerza.yml):
+
+**https://lidiego364.github.io/Dashboard-de-salud/**
+
+En el iPhone ábrela en Safari → Compartir → *Añadir a pantalla de inicio*. En Android, Chrome → menú → *Instalar app*. Las actualizaciones llegan solas: la app usa la versión guardada y descarga la nueva en segundo plano para la siguiente apertura.
+
+Solo se publica esta carpeta. Tus registros nunca salen del teléfono.
+
 ## Probar en local
 
 ```sh
@@ -25,5 +35,3 @@ cd fuerza
 python3 -m http.server 8000
 # abre http://localhost:8000
 ```
-
-Para usarla en el móvil hay que servirla por HTTPS (p. ej. GitHub Pages) y elegir "Añadir a pantalla de inicio".
