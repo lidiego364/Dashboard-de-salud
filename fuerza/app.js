@@ -62,7 +62,8 @@
       nombre: String(e.nombre || 'Ejercicio').trim(), grupo: e.grupo || 'Otro', equipo: e.equipo || '',
       series: Math.max(1, parseInt(e.series) || 3), reps: String(e.reps || '8-10'), rpe: e.rpe ? String(e.rpe) : '',
       kg: e.kg != null ? +e.kg : null, descanso: e.descanso ? +e.descanso : null, notas: e.notas || '',
-      alternativas: Array.isArray(e.alternativas) ? e.alternativas.slice() : [], opcional: !!e.opcional, desde: e.desde || null
+      alternativas: Array.isArray(e.alternativas) ? e.alternativas.slice() : [], opcional: !!e.opcional, desde: e.desde || null,
+      alias: Array.isArray(e.alias) ? e.alias.slice() : []
     };
   }
   function normRutina(r) {
@@ -170,9 +171,15 @@
     const filas = grupos.map(g => ({ g, plan: plan.get(g) || 0, hecho: hecho.get(g) || 0 })).sort((a, b) => b.plan - a.plan || b.hecho - a.hecho);
     return { filas, plan: filas.reduce((s, f) => s + f.plan, 0), hecho: filas.reduce((s, f) => s + f.hecho, 0) };
   }
+  // Nombre del ejercicio en el programa: unifica alias ("Dominadas" → "Jalón al pecho").
+  function canon(nombre) {
+    const k = norm(nombre);
+    for (const r of D.rutinas) for (const e of r.ejercicios) if (norm(e.nombre) === k || (e.alias || []).some(x => norm(x) === k)) return e.nombre;
+    return nombre;
+  }
   function historialEj(nombre) {
-    const k = norm(nombre), out = [];
-    D.sesiones.forEach(s => s.ejercicios.forEach(e => { if (norm(e.nombre) === k && e.sets.length) out.push({ fecha: s.fecha, sets: e.sets, descarga: !!s.descarga }); }));
+    const k = norm(canon(nombre)), out = [];
+    D.sesiones.forEach(s => s.ejercicios.forEach(e => { if (e.sets.length && norm(canon(e.nombre)) === k) out.push({ fecha: s.fecha, sets: e.sets, descarga: !!s.descarga }); }));
     return out;
   }
   function ultimo(nombre) { const h = historialEj(nombre); return h.length ? h[h.length - 1] : null; }
@@ -801,8 +808,8 @@
     const m = new Map();
     D.sesiones.forEach(s => s.ejercicios.forEach(e => {
       if (!e.sets.length) return;
-      const k = norm(e.nombre);
-      if (!m.has(k)) m.set(k, { nombre: e.nombre, ses: [] });
+      const nombre = canon(e.nombre), k = norm(nombre);
+      if (!m.has(k)) m.set(k, { nombre, ses: [] });
       m.get(k).ses.push({ fecha: s.fecha, sets: e.sets });
     }));
     return [...m.values()].sort((a, b) => b.ses.length - a.ses.length);
