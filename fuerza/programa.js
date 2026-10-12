@@ -79,7 +79,7 @@ window.PROGRAMA_FUERZA = {
     },
     {
       id: 'miercoles-pierna', duracion: '75–85 min', dia: 3, nombre: 'PIERNA + ABDOMEN', enfoque: 'Cuádriceps, femoral, gemelo, abdomen',
-      nota: 'Protege las 25 series. Si algún día no puedes, recorta de abajo hacia arriba (colgado, crunch, extensión), nunca los dos primeros.',
+      nota: 'Protege las 26 series. Si algún día no puedes, recorta de abajo hacia arriba (colgado, crunch, extensión), nunca los dos primeros.',
       movilidad: 'Gato-camello ×10 · 90/90 de cadera ×8/lado · tobillo en pared ×10/lado',
       cardioOmitirSiRpe: 8.5,
       cardioNota: 'Suave. Es lo primero que se recorta: omítela si la sentadilla Smith bajó de calidad o la pierna fue dura (RPE > 8.5).',
@@ -90,7 +90,7 @@ window.PROGRAMA_FUERZA = {
         { nombre: 'Sentadilla búlgara con mancuernas', grupo: 'Cuádriceps', equipo: 'Mancuernas', series: 3, reps: '10-12/pierna', rpe: '7-8', descanso: 120, alternativas: ['Zancada caminando', 'Step-up'], notas: 'El descanso empieza al terminar ambas piernas.' },
         { nombre: 'Extensión de cuádriceps', grupo: 'Cuádriceps', equipo: 'Máquina', series: 2, reps: '12-15', rpe: '9', descanso: 90, alternativas: ['Sissy squat'] },
         { nombre: 'Elevación de gemelo de pie', grupo: 'Gemelo', equipo: 'Máquina', series: 3, reps: '10-15', rpe: '8-9', descanso: 60, alternativas: ['Gemelo en prensa'] },
-        { nombre: 'Crunch en polea', grupo: 'Abdomen', equipo: 'Polea', series: 2, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Crunch en máquina'], notas: 'Cadera fija, flexiona la columna, codos cerca de la cara.' },
+        { nombre: 'Crunch en polea', grupo: 'Abdomen', equipo: 'Polea', series: 3, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Crunch en máquina'], notas: 'Cadera fija, flexiona la columna, codos cerca de la cara.' },
         { nombre: 'Elevación de piernas colgado', grupo: 'Abdomen', equipo: 'Peso corporal', series: 3, reps: '10-15', rpe: '8', descanso: 60, alternativas: ['Reverse crunch'] }
       ]
     },
@@ -114,9 +114,9 @@ window.PROGRAMA_FUERZA = {
         { nombre: 'Elevaciones laterales en polea', grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
         { nombre: 'Pájaros en polea', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Reverse pec deck', 'Face pull'] },
         { nombre: 'Fondos en paralelas', grupo: 'Tríceps', equipo: 'Peso corporal', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press cerrado', 'Fondos en máquina'] },
-        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
-        { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
-        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] }
+        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
+        { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
+        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] }
       ]
     }
   ]
