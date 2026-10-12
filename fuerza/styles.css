@@ -185,3 +185,7 @@ select.input { appearance: none; -webkit-appearance: none; font-weight: 500; fon
 .dialog-msg { font-size: 16px; line-height: 1.45; margin-bottom: 16px; }
 .dialog .btn { font-size: 15px; padding: 0 10px; }
 .btn-danger { background: #E58F8F; color: var(--app); }
+
+/* Progresión y ejercicios futuros */
+.hint.ok { color: var(--b1); background: rgba(159,180,214,.10); border-color: rgba(159,180,214,.35); }
+.pill.futuro { border-style: dashed; opacity: .7; }

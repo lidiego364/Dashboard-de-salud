@@ -9,7 +9,7 @@
   const DIA_NOMBRE = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const RECUP = [['Pecho', '#E6EBF5'], ['Espalda', '#9FB4D6'], ['Piernas', '#7C93BA'], ['Hombro', '#C5CCD8']];
-  const GRUPOS = ['Pecho', 'Espalda', 'Hombro', 'Deltoide posterior', 'Cuádriceps', 'Isquios', 'Gemelo', 'Bíceps', 'Tríceps', 'Abdomen', 'Otro'];
+  const GRUPOS = ['Pecho', 'Espalda', 'Hombro', 'Deltoide posterior', 'Cuádriceps', 'Isquios / glúteo', 'Gemelo', 'Bíceps', 'Tríceps', 'Abdomen', 'Otro'];
   const RPES = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
   const ANGULOS = ['Frente', 'Lado', 'Espalda'];
   const DAY = 86400000;
@@ -62,13 +62,13 @@
       nombre: String(e.nombre || 'Ejercicio').trim(), grupo: e.grupo || 'Otro', equipo: e.equipo || '',
       series: Math.max(1, parseInt(e.series) || 3), reps: String(e.reps || '8-10'), rpe: e.rpe ? String(e.rpe) : '',
       kg: e.kg != null ? +e.kg : null, descanso: e.descanso ? +e.descanso : null, notas: e.notas || '',
-      alternativas: Array.isArray(e.alternativas) ? e.alternativas.slice() : [], opcional: !!e.opcional
+      alternativas: Array.isArray(e.alternativas) ? e.alternativas.slice() : [], opcional: !!e.opcional, desde: e.desde || null
     };
   }
   function normRutina(r) {
     return {
       id: r.id || uid(), dia: r.dia ? +r.dia : null, nombre: String(r.nombre || 'RUTINA').toUpperCase(), enfoque: r.enfoque || '',
-      nota: r.nota || '', movilidad: r.movilidad || '', cardioNota: r.cardioNota || '', cardioOmitirSiRpe: r.cardioOmitirSiRpe || null,
+      nota: r.nota || '', duracion: r.duracion || '', movilidad: r.movilidad || '', cardioNota: r.cardioNota || '', cardioOmitirSiRpe: r.cardioOmitirSiRpe || null,
       ejercicios: (r.ejercicios || []).map(normEj)
     };
   }
@@ -102,6 +102,15 @@
     const total = Math.round((f - i) / (7 * DAY)) + 1, n = Math.round((h - i) / (7 * DAY)) + 1;
     return n >= 1 && n <= total ? { n, total } : null;
   }
+  const vigente = (e, f = new Date()) => !e.desde || isoDia(f) >= e.desde;
+  const ejerciciosDe = (r, f = new Date()) => r.ejercicios.filter(e => vigente(e, f));
+  function seriesPlan(e, f = new Date()) {
+    if (!vigente(e, f)) return 0;
+    const d = enDescarga(f) && PRG.descarga;
+    return d ? Math.max(1, Math.ceil(e.series * (d.factorSeries || 0.5))) : e.series;
+  }
+  const esInferior = g => /cuadri|isquio|glute|gemelo|pierna|femoral/.test(norm(g));
+  function fechaDia(r, mon = lunes(new Date())) { return r.dia ? new Date(mon.getTime() + (r.dia - 1) * DAY + 12 * 3600000) : new Date(); }
   const rutinasConDia = () => D.rutinas.filter(r => r.dia).sort((a, b) => a.dia - b.dia);
   function proximaRutina(d) {
     const R = rutinasConDia();
@@ -157,7 +166,7 @@
   }
   function volumenSemana() {
     const plan = new Map(), hecho = new Map(), mon = lunes(new Date()).getTime();
-    D.rutinas.forEach(r => r.ejercicios.forEach(e => { if (!e.opcional) plan.set(e.grupo, (plan.get(e.grupo) || 0) + e.series); }));
+    D.rutinas.forEach(r => { const f = fechaDia(r, new Date(mon)); r.ejercicios.forEach(e => { const n = seriesPlan(e, f); if (!e.opcional && n) plan.set(e.grupo, (plan.get(e.grupo) || 0) + n); }); });
     sesionesDesde(mon, mon + 7 * DAY).forEach(s => s.ejercicios.forEach(e => hecho.set(e.grupo, (hecho.get(e.grupo) || 0) + e.sets.length)));
     const grupos = [...new Set([...plan.keys(), ...hecho.keys()])];
     const filas = grupos.map(g => ({ g, plan: plan.get(g) || 0, hecho: hecho.get(g) || 0 })).sort((a, b) => b.plan - a.plan || b.hecho - a.hecho);
@@ -169,8 +178,9 @@
     return out;
   }
   function ultimo(nombre) { const h = historialEj(nombre); return h.length ? h[h.length - 1] : null; }
-  const seriesRutina = r => r.ejercicios.reduce((a, e) => a + (e.opcional ? 0 : e.series), 0);
-  function estMin(r) { return Math.round(r.ejercicios.reduce((a, e) => a + (e.opcional ? 0 : e.series * (40 + (e.descanso || D.ajustes.descanso))), 0) / 60) + 5; }
+  const seriesRutina = (r, f = new Date()) => r.ejercicios.reduce((a, e) => a + (e.opcional ? 0 : seriesPlan(e, f)), 0);
+  const seriesCompletas = r => r.ejercicios.reduce((a, e) => a + (e.opcional ? 0 : e.series), 0);
+  function estMin(r, f = new Date()) { return Math.round(r.ejercicios.reduce((a, e) => a + (e.opcional ? 0 : seriesPlan(e, f) * (40 + (e.descanso || D.ajustes.descanso))), 0) / 60) + 5; }
   function enfoque(r) {
     if (r.enfoque) return r.enfoque;
     const g = [...new Set(r.ejercicios.map(e => e.grupo).filter(Boolean))].map(x => x.toLowerCase()).join(', ');
@@ -197,18 +207,32 @@
       s.kg = base ? base.kg : fallbackKg; s.reps = base ? base.reps : fallbackReps;
     });
   }
+  function subida(e) {
+    const prev = ultimo(e.nombre), nums = String(e.reps).match(/\d+/g);
+    if (!prev || !nums || !PRG.progresion) return null;
+    const low = +nums[0], top = +(nums[1] || nums[0]), cap = capRpe(e.rpe);
+    const maxKg = Math.max(...prev.sets.map(s => s.kg));
+    if (!(maxKg > 0) || prev.sets.length < e.series) return null;
+    if (!prev.sets.every(s => s.reps >= top && (!s.rpe || !cap || s.rpe <= cap))) return null;
+    const inc = esInferior(e.grupo) ? PRG.progresion.inferior : PRG.progresion.superior;
+    return { kg: maxKg + inc, reps: low, inc, top };
+  }
   function crearActivo(r) {
+    const desc = !!(enDescarga() && PRG.descarga);
     return {
       rutinaId: r.id, nombre: r.nombre, nota: r.nota || '', movilidad: r.movilidad || '', cardioNota: r.cardioNota || '', cardioOmitirSiRpe: r.cardioOmitirSiRpe || null,
-      inicio: Date.now(), fin: 0, exi: 0, view: 'focus', restEnd: 0, restTotal: 0, cardio: '',
-      ejercicios: r.ejercicios.map((e, i) => {
-        const sets = Array.from({ length: e.series }, () => ({ kg: 0, reps: 0, rpe: null, done: false }));
+      inicio: Date.now(), fin: 0, exi: 0, view: 'focus', restEnd: 0, restTotal: 0, restExtra: 0, cardio: '', descarga: desc,
+      ejercicios: ejerciciosDe(r).map((e, i) => {
+        const n = seriesPlan(e), rpe = desc ? PRG.descarga.rpe : (e.rpe || '');
+        const sets = Array.from({ length: n }, () => ({ kg: 0, reps: 0, rpe: null, done: false }));
         prefill(sets, e.nombre, e.kg || 0, parseInt(e.reps) || 8);
+        const sub = desc ? null : subida(e);
+        if (sub) sets.forEach(s => { s.kg = sub.kg; s.reps = sub.reps; });
         const descanso = e.descanso || D.ajustes.descanso;
         return {
           nombre: e.nombre, original: e.nombre, opciones: [e.nombre, ...(e.alternativas || [])], grupo: e.grupo, color: COLORS[i % COLORS.length],
-          descanso, notas: e.notas || '', opcional: !!e.opcional, rpe: e.rpe || '', cap: capRpe(e.rpe), kgBase: e.kg || 0, repsBase: parseInt(e.reps) || 8,
-          meta: [e.grupo, e.equipo].filter(Boolean).join(' · ') + ' · ' + e.series + '×' + e.reps + (e.rpe ? ' · RPE ' + e.rpe : '') + ' · ' + fmtDesc(descanso) + (e.opcional ? ' · opcional' : ''),
+          descanso, notas: e.notas || '', opcional: !!e.opcional, rpe, cap: capRpe(rpe), kgBase: e.kg || 0, repsBase: parseInt(e.reps) || 8, subida: sub ? { inc: sub.inc, top: sub.top } : null,
+          meta: [e.grupo, e.equipo].filter(Boolean).join(' · ') + ' · ' + n + '×' + e.reps + (rpe ? ' · RPE ' + rpe : '') + ' · ' + fmtDesc(descanso) + (e.opcional ? ' · opcional' : ''),
           sets
         };
       })
@@ -225,7 +249,14 @@
     a.ejercicios.forEach(e => e.sets.forEach(x => { if (!e.opcional || x.done) total++; if (x.done) { done++; vol += x.kg * x.reps; } }));
     return { vol, done, total };
   }
-  function iniciarDescanso(seg) { const a = D.activo; a.restTotal = seg; a.restEnd = Date.now() + seg * 1000; }
+  function iniciarDescanso(seg, rpe) {
+    const a = D.activo, x = PRG.extraDescansoRpe, extra = x && rpe && rpe >= x.desde ? x.segundos : 0;
+    a.restExtra = extra; a.restTotal = seg + extra; a.restEnd = Date.now() + (seg + extra) * 1000;
+  }
+  function hintSubida(e) {
+    if (!e.subida || e.sets.some(s => s.done)) return '';
+    return `<div class="hint ok">Doble progresión: la última vez llegaste a ${e.subida.top} reps en todas las series. Hoy +${fv(e.subida.inc)} ${U()} y vuelve al rango bajo.</div>`;
+  }
   function resumen(a) {
     const p = progreso(a), prs = [];
     let rs = 0, rn = 0, sobre = 0;
@@ -254,8 +285,9 @@
     }
     const e0 = a.ejercicios[0];
     if (a.exi === 0 && e0.sets.every(s => !s.done) && e0.sets[0].kg > 0) {
-      h += `<div class="card info mt10"><div class="cap">APROXIMACIÓN · SOLO EN EL PRIMERO</div><div class="info-l c" style="font-size:20px;color:var(--tx)">${aproximacion(e0.sets[0].kg)}</div></div>`;
+      h += `<div class="card info mt10"><div class="cap">APROXIMACIÓN · SOLO EN EL PRIMERO</div><div class="info-l c" style="font-size:20px;color:var(--tx)">${aproximacion(e0.sets[0].kg)}</div>${PRG.calentamiento && PRG.calentamiento.aproximacion ? `<div class="info-l">${esc(PRG.calentamiento.aproximacion)}</div>` : ''}</div>`;
     }
+    if (nada && a.descarga && PRG.descarga) h += `<div class="notes" style="color:var(--b1)">Descarga: mismo peso que la semana pasada, mitad de series y RPE ${esc(PRG.descarga.rpe)}.</div>`;
     if (nada && a.nota) h += `<div class="notes">${esc(a.nota)}</div>`;
     return h;
   }
@@ -361,7 +393,7 @@
         const r = h.r;
         hero = `<div ${wcap}>HOY · DÍA ${h.n} DE ${h.total}${r.dia ? ' · ' + DIA_NOMBRE[r.dia].toUpperCase() : ''}</div>
           <div class="c" style="font-size:${tamNombre(r.nombre)}px;line-height:.95;margin-top:6px">${esc(r.nombre)}</div>
-          <div style="font-size:14px;margin-top:6px;opacity:.9">${r.ejercicios.filter(e => !e.opcional).length} ejercicios · ${seriesRutina(r)} series · ~${estMin(r)} min</div>
+          <div style="font-size:14px;margin-top:6px;opacity:.9">${ejerciciosDe(r).filter(e => !e.opcional).length} ejercicios · ${seriesRutina(r)} series · ${enDescarga() && PRG.descarga ? '~' + estMin(r) + ' min · descarga' : r.duracion ? esc(r.duracion) : '~' + estMin(r) + ' min'}</div>
           <div style="font-size:13px;margin-top:2px;opacity:.75">${esc(enfoque(r))}${PRG.cardio ? ' · + cardio' : ''}</div>
           <button class="btn btn-w btn-white mt16" data-act="start" data-id="${esc(r.id)}">Empezar entrenamiento</button>`;
       } else if (h.tipo === 'hecha') {
@@ -381,7 +413,7 @@
 
     const desc = enDescarga(), alerta = !desc && alertaDescarga(), sem = semanaPrograma();
     let avisos = '';
-    if (desc) avisos += `<div class="card mt14 aviso"><div class="cap" style="color:var(--b1)">SEMANA DE DESCARGA</div><div style="font-weight:700;margin-top:4px">${fechaCorta(parseDia(desc[0]))} – ${fechaCorta(parseDia(desc[1]))}</div>${PRG.descargaNota ? `<div class="mu" style="font-size:13px;margin-top:4px">${esc(PRG.descargaNota)}</div>` : ''}</div>`;
+    if (desc) avisos += `<div class="card mt14 aviso"><div class="cap" style="color:var(--b1)">SEMANA DE DESCARGA</div><div style="font-weight:700;margin-top:4px">${fechaCorta(parseDia(desc[0]))} – ${fechaCorta(parseDia(desc[1]))}</div>${PRG.descarga ? `<div class="mu" style="font-size:13px;margin-top:4px;line-height:1.4">${esc(PRG.descarga.nota)}</div>` : ''}</div>`;
     if (alerta) avisos += `<div class="card mt14 aviso warn"><div class="cap" style="color:var(--warn)">TOCA DESCARGA</div><div style="font-size:14px;margin-top:4px">RPE medio ${fRpe(alerta.w2)} y ${fRpe(alerta.w1)} las dos últimas semanas (umbral ${alerta.um}).</div></div>`;
 
     return `
@@ -392,7 +424,7 @@
       </div>
       <div class="card" style="margin-top:20px">
         <div class="between" style="align-items:baseline"><div class="lbl">RACHA SEMANAL</div>
-        <div><span class="c" style="font-size:34px;color:var(--si)">${racha()}</span><span class="mu" style="font-size:12px"> semanas</span></div></div>
+        <div><span class="c" style="font-size:34px;color:var(--si)">${racha()}</span><span class="mu" style="font-size:12px"> ${racha() === 1 ? 'semana' : 'semanas'}</span></div></div>
         <div class="week">${week}</div>
         ${vol.plan ? `<div class="between mt12" style="font-size:13px"><span class="mu">Series esta semana <b style="color:var(--tx)">${vol.hecho}</b> / ${vol.plan}</span><span class="mu">RPE medio <b style="color:${rpeS && rpeS > (PRG.umbralDescarga || 9.3) ? 'var(--warn)' : 'var(--tx)'}">${rpeS ? fRpe(rpeS) : '—'}</b></span></div>
         <div class="bar mt8"><div style="width:${clamp(vol.hecho / vol.plan * 100, 0, 100)}%"></div></div>` : ''}
@@ -426,6 +458,7 @@
       body = `
         <div class="chips mt14">${chips}</div>
         ${bloquePrevio(a)}
+        ${hintSubida(e)}
         <div class="card mt14" style="padding:16px 12px 12px">
           <div class="ex-head" style="margin-bottom:10px"><div class="ex-tag" style="height:36px;background:${e.color}"></div>
           <div style="flex:1;min-width:0"><div class="ex-name">${esc(e.nombre)}</div><div class="mu" style="font-size:12px">${esc(e.meta)}</div>${e.nombre !== e.original ? `<div class="mu" style="font-size:12px">Sustituye a ${esc(e.original)}</div>` : ''}</div>
@@ -472,7 +505,9 @@
             <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="cap" style="letter-spacing:2px">DESCANSO</div><div class="c" style="font-size:84px;line-height:1;color:var(--b1)" data-rest-txt>${mmss(rest)}</div></div>
           </div>
           <div class="mu" style="margin-top:12px;font-size:13px">${allDone ? 'Ejercicio completo' : 'Siguiente · Serie ' + (si + 1) + ' · ' + fv(cs.kg) + ' ' + u + ' × ' + cs.reps}</div>
-          <div class="row" style="gap:10px;width:100%;margin-top:14px"><button class="btn btn-ghost" style="flex:1" data-act="restAdd">+15 s</button><button class="btn btn-b1" style="flex:2" data-act="restSkip">Saltar descanso</button></div>
+          ${a.restExtra ? `<div style="margin-top:4px;font-size:13px;color:var(--warn)">+${a.restExtra} s por serie a RPE 9 o más</div>` : ''}
+          ${a.descarga ? '<div class="mu" style="margin-top:4px;font-size:12px">Descarga: puedes acortar el descanso 30 s</div>' : a.exi < 2 && !allDone ? '<div class="mu" style="margin-top:4px;font-size:12px">Básico: no acortes este descanso</div>' : ''}
+          <div class="row" style="gap:10px;width:100%;margin-top:14px">${a.descarga ? '<button class="btn btn-ghost" style="flex:1" data-act="restSub">−30 s</button>' : ''}<button class="btn btn-ghost" style="flex:1" data-act="restAdd">+15 s</button><button class="btn btn-b1" style="flex:2" data-act="restSkip">${a.descarga ? 'Saltar' : 'Saltar descanso'}</button></div>
         </div>`;
     } else if (allDone) {
       const vol = ce.sets.reduce((s, x) => s + x.kg * x.reps, 0);
@@ -488,6 +523,7 @@
       inner = `
         <div class="mt18" style="text-align:center"><div class="c" style="font-size:18px;letter-spacing:2px;color:${ce.color}">SERIE ${si + 1} DE ${ce.sets.length}</div>
         <div class="mu" style="font-size:13px;margin-top:2px">Anterior · ${cs.pk != null ? fv(cs.pk) + ' × ' + cs.pr + (cs.prpe ? ' @ RPE ' + fRpe(cs.prpe) : '') : '—'}</div></div>
+        ${hintSubida(ce)}
         ${alto ? `<div class="hint">Serie anterior a RPE ${fRpe(prevSet.rpe)} (techo ${esc(ce.rpe)}). Baja un poco el peso.</div>` : ''}
         <div class="grid2 mt14" style="gap:12px">
           <div class="pad"><div class="cap">${u.toUpperCase()}</div><div class="c pad-v">${fv(cs.kg)}</div><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="kgM" aria-label="Menos peso">−</button><button class="step" data-act="kgP" aria-label="Más peso">+</button></div></div>
@@ -532,7 +568,7 @@
         <div class="row" style="gap:12px"><div style="flex:1"><div style="font-weight:700">Cardio</div><div class="mu" style="font-size:12px">${esc(PRG.cardio.texto)}</div></div>
         <input class="num" style="width:70px" value="${esc(a.cardio)}" placeholder="min" inputmode="numeric" data-in="cardio" aria-label="Minutos de cardio"><span class="mu" style="font-size:14px">min</span></div>
         ${omitir ? `<div class="hint" style="margin:10px 0 0">RPE medio de hoy ${fRpe(r.rpe)} (> ${a.cardioOmitirSiRpe}): hoy toca omitir la cinta.</div>` : ''}
-        <div class="mu" style="font-size:12px;margin-top:8px;line-height:1.4">${esc(a.cardioNota || PRG.cardio.nota)}</div></div>`;
+        <div class="mu" style="font-size:12px;margin-top:8px;line-height:1.4">${esc(a.descarga && PRG.descarga ? PRG.descarga.cardio : a.cardioNota || PRG.cardio.nota)}</div></div>`;
     }
     return `
       <button class="btn-link" data-act="back">‹ Seguir entrenando</button>
@@ -569,14 +605,14 @@
       return `<div class="rut${hero ? ' hero-r' : ''}">
         <div class="between" style="align-items:flex-start;gap:10px">
           <div style="min-width:0">${r.dia ? `<div class="cap" style="color:${sub}">${DIA_NOMBRE[r.dia].toUpperCase()}</div>` : ''}<div class="c" style="font-size:32px;line-height:1">${esc(r.nombre)}</div>
-          <div style="font-size:13px;margin-top:4px;color:${sub}">${r.ejercicios.length} ejercicios · ${seriesRutina(r)} series · ${ultimaVez(r.id)}</div></div>
+          <div style="font-size:13px;margin-top:4px;color:${sub}">${ejerciciosDe(r, fechaDia(r)).length} ejercicios · ${seriesRutina(r, fechaDia(r))} series${enDescarga(fechaDia(r)) && PRG.descarga ? ' (descarga)' : ''} · ${ultimaVez(r.id)}</div></div>
           <div class="row" style="gap:6px;flex:none"><button class="btn-sm" data-act="editRut" data-i="${i}">Editar</button><button class="btn-sm solid" data-act="startRut" data-i="${i}" aria-label="Empezar ${esc(r.nombre)}">▶</button></div>
         </div>
-        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:12px">${r.ejercicios.map(e => `<span class="pill">${esc(e.nombre)}</span>`).join('')}</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:12px">${r.ejercicios.map(e => `<span class="pill${vigente(e, fechaDia(r)) ? '' : ' futuro'}">${esc(e.nombre)}${vigente(e, fechaDia(r)) ? '' : ' · desde ' + fechaCorta(parseDia(e.desde))}</span>`).join('')}</div>
         ${r.nota ? `<div style="font-size:12px;margin-top:10px;color:${sub}">${esc(r.nota)}</div>` : ''}
       </div>`;
     }).join('');
-    const total = D.rutinas.reduce((s, r) => s + seriesRutina(r), 0);
+    const total = D.rutinas.reduce((s, r) => s + seriesCompletas(r), 0);
     return `
       <div class="between"><div class="h1">Rutinas</div><button class="btn-out" data-act="newRut">+ Nueva</button></div>
       ${PRG.nombre ? `<div class="mu" style="font-size:13px;margin-top:4px">${esc(PRG.nombre)}${PRG.objetivo ? ' · ' + esc(PRG.objetivo) : ''} · ${total} series/semana</div>` : ''}
@@ -957,7 +993,7 @@
     toggle: d => {
       const a = D.activo, e = a.ejercicios[+d.ei], x = e.sets[+d.si];
       x.done = !x.done;
-      if (x.done) { iniciarDescanso(e.descanso); avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
+      if (x.done) { iniciarDescanso(e.descanso, x.rpe); avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
       save(); render();
     },
     addSet: d => { const e = D.activo.ejercicios[+d.ei], l = e.sets[e.sets.length - 1]; e.sets.push({ kg: l.kg, reps: l.reps, rpe: null, pk: null, pr: null, done: false }); save(); render(); },
@@ -967,9 +1003,10 @@
     repM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: Math.max(0, cs.reps - 1) }); render(); },
     repP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: cs.reps + 1 }); render(); },
     rpe: d => { const { si, cs } = focusSet(), v = +d.v; setSet(D.activo.exi, si, { rpe: cs.rpe === v ? null : v }); render(); },
-    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso); save(); render(); },
+    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso, cs.rpe); save(); render(); },
     restAdd: () => { const a = D.activo; if (restLeft(a) > 0) { a.restEnd += 15000; a.restTotal += 15; save(); tick(); } },
     restSkip: () => { D.activo.restEnd = 0; lastRest = 0; save(); render(); },
+    restSub: () => { const a = D.activo; if (restLeft(a) > 30) { a.restEnd -= 30000; save(); tick(); } else A.restSkip(); },
     swap: d => { ui.swap = +d.ei; renderOverlay(); },
     closeSwap: () => { ui.swap = null; renderOverlay(); },
     swapTo: d => {
@@ -987,7 +1024,7 @@
       const fin = a.fin || Date.now();
       D.sesiones.push({
         id: uid(), fecha: new Date(fin).toISOString(), rutinaId: a.rutinaId, nombre: a.nombre, duracion: Math.round((fin - a.inicio) / 1000),
-        rpeMedio: r.rpe ? Math.round(r.rpe * 100) / 100 : null, cardioMin: parseInt(a.cardio) || 0, ejercicios
+        rpeMedio: r.rpe ? Math.round(r.rpe * 100) / 100 : null, cardioMin: parseInt(a.cardio) || 0, ...(a.descarga ? { descarga: true } : {}), ejercicios
       });
       D.sesiones.sort((x, y) => x.fecha.localeCompare(y.fecha));
       const bw = toKg(ui.bw);
