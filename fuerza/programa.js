@@ -22,7 +22,7 @@ window.PROGRAMA_FUERZA = {
   perfil: { nombre: 'Diego', diasSemana: 5 },
   inicio: '2026-10-12',
   fin: '2026-11-30',
-  descargas: [['2026-10-12', '2026-10-18'], ['2026-11-16', '2026-11-22']],
+  descargas: [], // sin semanas de descarga programadas
   // En semana de descarga: mismos ejercicios y mismo peso, mitad de series (redondeando hacia arriba) y RPE 6.
   descarga: {
     factorSeries: 0.5,
