@@ -174,7 +174,7 @@
   }
   function historialEj(nombre) {
     const k = norm(nombre), out = [];
-    D.sesiones.forEach(s => s.ejercicios.forEach(e => { if (norm(e.nombre) === k && e.sets.length) out.push({ fecha: s.fecha, sets: e.sets }); }));
+    D.sesiones.forEach(s => s.ejercicios.forEach(e => { if (norm(e.nombre) === k && e.sets.length) out.push({ fecha: s.fecha, sets: e.sets, descarga: !!s.descarga }); }));
     return out;
   }
   function ultimo(nombre) { const h = historialEj(nombre); return h.length ? h[h.length - 1] : null; }
@@ -207,36 +207,59 @@
       s.kg = base ? base.kg : fallbackKg; s.reps = base ? base.reps : fallbackReps;
     });
   }
-  function subida(e) {
-    const prev = ultimo(e.nombre), nums = String(e.reps).match(/\d+/g);
-    if (!prev || !nums || !PRG.progresion) return null;
-    const low = +nums[0], top = +(nums[1] || nums[0]), cap = capRpe(e.rpe);
-    const maxKg = Math.max(...prev.sets.map(s => s.kg));
-    if (!(maxKg > 0) || prev.sets.length < e.series) return null;
-    if (!prev.sets.every(s => s.reps >= top && (!s.rpe || !cap || s.rpe <= cap))) return null;
-    const inc = esInferior(e.grupo) ? PRG.progresion.inferior : PRG.progresion.superior;
-    return { kg: maxKg + inc, reps: low, inc, top };
+  // Plan del entrenador (coach.js) para un ejercicio de la rutina.
+  function planDe(e, n, estado, desc) {
+    return Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: n, reps: e.reps, rpe: e.rpe, kg: e.kg || 0 }, historialEj(e.nombre), { estado, descarga: desc, inc: PRG.progresion });
   }
-  function crearActivo(r) {
+  function aplicarPlan(ej, plan) {
+    ej.sets.forEach((x, j) => {
+      const t = plan.sets[j] || plan.sets[plan.sets.length - 1];
+      if (x.done || !t) return;
+      x.kg = t.kg; x.reps = t.reps; x.trpe = t.rpe; x.treps = t.reps; x.manual = false;
+    });
+    ej.coach = { tipo: plan.tipo, titulo: plan.titulo, motivo: plan.motivo };
+    ej.low = plan.low; ej.top = plan.top; ej.ajuste = '';
+  }
+  function crearActivo(r, estado) {
     const desc = !!(enDescarga() && PRG.descarga);
     return {
       rutinaId: r.id, nombre: r.nombre, nota: r.nota || '', movilidad: r.movilidad || '', cardioNota: r.cardioNota || '', cardioOmitirSiRpe: r.cardioOmitirSiRpe || null,
-      inicio: Date.now(), fin: 0, exi: 0, view: 'focus', restEnd: 0, restTotal: 0, restExtra: 0, cardio: '', descarga: desc,
+      inicio: Date.now(), fin: 0, exi: 0, view: 'focus', restEnd: 0, restTotal: 0, restExtra: 0, cardio: '', descarga: desc, estado: estado || null,
       ejercicios: ejerciciosDe(r).map((e, i) => {
         const n = seriesPlan(e), rpe = desc ? PRG.descarga.rpe : (e.rpe || '');
         const sets = Array.from({ length: n }, () => ({ kg: 0, reps: 0, rpe: null, done: false }));
         prefill(sets, e.nombre, e.kg || 0, parseInt(e.reps) || 8);
-        const sub = desc ? null : subida(e);
-        if (sub) sets.forEach(s => { s.kg = sub.kg; s.reps = sub.reps; });
         const descanso = e.descanso || D.ajustes.descanso;
-        return {
+        const ej = {
           nombre: e.nombre, original: e.nombre, opciones: [e.nombre, ...(e.alternativas || [])], grupo: e.grupo, color: COLORS[i % COLORS.length],
-          descanso, notas: e.notas || '', opcional: !!e.opcional, rpe, cap: capRpe(rpe), kgBase: e.kg || 0, repsBase: parseInt(e.reps) || 8, subida: sub ? { inc: sub.inc, top: sub.top } : null,
+          descanso, notas: e.notas || '', opcional: !!e.opcional, rpe, cap: capRpe(rpe), kgBase: e.kg || 0, repsBase: parseInt(e.reps) || 8, repsTxt: e.reps, rpeTxt: e.rpe || '', seriesFull: e.series, equipo: e.equipo || '',
           meta: [e.grupo, e.equipo].filter(Boolean).join(' · ') + ' · ' + n + '×' + e.reps + (rpe ? ' · RPE ' + rpe : '') + ' · ' + fmtDesc(descanso) + (e.opcional ? ' · opcional' : ''),
           sets
         };
+        aplicarPlan(ej, planDe(e, n, estado, desc));
+        return ej;
       })
     };
+  }
+  // Ajuste en vivo de las series que quedan según el RPE de la que acaba de terminar.
+  function ajustar(ei, si) {
+    const e = D.activo.ejercicios[ei], x = e.sets[si];
+    const aj = Coach.ajusteSerie({ kg: x.kg, reps: x.reps, rpe: x.rpe }, { rpe: x.trpe, reps: x.treps }, e.low || 0, e.equipo);
+    if (!aj) return null;
+    let n = 0;
+    e.sets.forEach((y, j) => { if (j > si && !y.done && !y.manual) { y.kg = Math.max(0, y.kg + aj.delta); n++; } });
+    e.ajuste = n ? aj.txt : '';
+    return n ? aj : null;
+  }
+  // Plan de la próxima sesión, contando la de hoy.
+  function proximaVez(a) {
+    return a.ejercicios.map(e => {
+      const hechas = e.sets.filter(x => x.done && x.reps > 0).map(x => ({ kg: x.kg, reps: x.reps, rpe: x.rpe }));
+      if (!hechas.length) return null;
+      const hist = historialEj(e.nombre).concat([{ sets: hechas, descarga: !!a.descarga }]);
+      const p = Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: e.seriesFull || e.sets.length, reps: e.repsTxt || e.top || 8, rpe: e.rpeTxt != null ? e.rpeTxt : e.rpe }, hist, { inc: PRG.progresion });
+      return { nombre: e.nombre, plan: p };
+    }).filter(Boolean);
   }
   const restLeft = a => a && a.restEnd ? Math.max(0, Math.ceil((a.restEnd - Date.now()) / 1000)) : 0;
   function clockTxt(a) {
@@ -253,9 +276,19 @@
     const a = D.activo, x = PRG.extraDescansoRpe, extra = x && rpe && rpe >= x.desde ? x.segundos : 0;
     a.restExtra = extra; a.restTotal = seg + extra; a.restEnd = Date.now() + (seg + extra) * 1000;
   }
-  function hintSubida(e) {
-    if (!e.subida || e.sets.some(s => s.done)) return '';
-    return `<div class="hint ok">Doble progresión: la última vez llegaste a ${e.subida.top} reps en todas las series. Hoy +${fv(e.subida.inc)} ${U()} y vuelve al rango bajo.</div>`;
+  function vCoach(e) {
+    if (!e.coach) return '';
+    const u = U(), empezado = e.sets.some(x => x.done);
+    const aj = e.ajuste ? `<div class="coach-a">${esc(e.ajuste)}</div>` : '';
+    if (empezado) return aj ? `<div class="coach mt10">${aj}</div>` : '';
+    const sets = e.sets, kg = sets[0].kg, reps = sets.map(x => x.reps), rpes = sets.map(x => x.trpe).filter(v => v != null);
+    const repsTxt = reps.every(r => r === reps[0]) ? reps[0] + ' reps' : reps.join(', ') + ' reps';
+    const rpeTxt = rpes.length ? 'RPE ' + (rpes[0] === rpes[rpes.length - 1] ? fRpe(rpes[0]) : fRpe(rpes[0]) + '→' + fRpe(rpes[rpes.length - 1])) : '';
+    const kgTxt = kg > 0 ? fv(kg) + ' ' + u : e.coach.tipo === 'primera' ? 'elige peso' : 'peso corporal';
+    return `<div class="coach t-${e.coach.tipo} mt10">
+      <div class="between"><span class="cap">ENTRENADOR</span><span class="coach-t">${esc(e.coach.titulo)}</span></div>
+      <div class="c coach-plan">${sets.length} × ${kgTxt} · ${repsTxt}${rpeTxt ? ' · ' + rpeTxt : ''}</div>
+      <div class="coach-m">${esc(e.coach.motivo)}</div>${aj}</div>`;
   }
   function resumen(a) {
     const p = progreso(a), prs = [];
@@ -280,8 +313,10 @@
     const nada = a.ejercicios.every(e => e.sets.every(s => !s.done));
     let h = '';
     if (nada && PRG.calentamiento) {
-      h += `<div class="card info mt14"><div class="cap">CALENTAMIENTO · 8–10 MIN</div>
-        <div class="info-l">${esc(PRG.calentamiento.general)}</div><div class="info-l">Movilidad: ${esc(a.movilidad || PRG.calentamiento.movilidad)}</div></div>`;
+      h += ui.calent
+        ? `<div class="card info mt14"><button class="fold" data-act="calent"><span class="cap">CALENTAMIENTO · 8–10 MIN</span><span class="mu">Ocultar</span></button>
+          <div class="info-l">${esc(PRG.calentamiento.general)}</div><div class="info-l">Movilidad: ${esc(a.movilidad || PRG.calentamiento.movilidad)}</div></div>`
+        : `<div class="card info mt14"><button class="fold" data-act="calent"><span class="cap">CALENTAMIENTO · 8–10 MIN</span><span class="mu">Ver ›</span></button></div>`;
     }
     const e0 = a.ejercicios[0];
     if (a.exi === 0 && e0.sets.every(s => !s.done) && e0.sets[0].kg > 0) {
@@ -340,7 +375,7 @@
   const ui = {
     screen: D.activo ? (D.activo.fin ? 'summary' : 'workout') : 'hoy',
     ptab: 'peso', ang: 0, cmp: 50, antes: {}, lift: null,
-    edit: null, swap: null, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
+    edit: null, swap: null, checkin: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
   };
   const scrollPos = {};
   let lastScreen = null, lastRest = restLeft(D.activo);
@@ -356,6 +391,16 @@
     return `<svg width="${size}" height="${size}" viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="#1E2738" stroke-width="6"/><circle cx="32" cy="32" r="27" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(clamp(v, 0, 100) / 100) * 170} 170" transform="rotate(-90 32 32)"/></svg>`;
   }
   const tamNombre = n => n.length > 16 ? 36 : n.length > 11 ? 42 : 52;
+
+  function vistaPrevia(r) {
+    const desc = !!(enDescarga() && PRG.descarga);
+    const filas = ejerciciosDe(r).filter(e => !e.opcional).slice(0, 2).map(e => {
+      const p = planDe(e, seriesPlan(e), null, desc), t = p.sets[0];
+      if (!(t.kg > 0)) return '';
+      return `<div class="between" style="gap:10px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.nombre)}</span><b style="flex:none">${fv(t.kg)} ${U()} × ${t.reps}</b></div>`;
+    }).filter(Boolean);
+    return filas.length ? `<div class="preview mt12"><div class="cap" style="color:#fff;opacity:.75">TU ENTRENADOR PROPONE</div>${filas.join('')}</div>` : '';
+  }
 
   // ---------- Pantalla: Hoy ----------
   function vHoy() {
@@ -395,6 +440,7 @@
           <div class="c" style="font-size:${tamNombre(r.nombre)}px;line-height:.95;margin-top:6px">${esc(r.nombre)}</div>
           <div style="font-size:14px;margin-top:6px;opacity:.9">${ejerciciosDe(r).filter(e => !e.opcional).length} ejercicios · ${seriesRutina(r)} series · ${enDescarga() && PRG.descarga ? '~' + estMin(r) + ' min · descarga' : r.duracion ? esc(r.duracion) : '~' + estMin(r) + ' min'}</div>
           <div style="font-size:13px;margin-top:2px;opacity:.75">${esc(enfoque(r))}${PRG.cardio ? ' · + cardio' : ''}</div>
+          ${vistaPrevia(r)}
           <button class="btn btn-w btn-white mt16" data-act="start" data-id="${esc(r.id)}">Empezar entrenamiento</button>`;
       } else if (h.tipo === 'hecha') {
         hero = `<div ${wcap}>HOY · COMPLETADO ✓</div>
@@ -451,14 +497,14 @@
           <span class="mu" style="font-size:12px;line-height:1.2">${x.pk != null ? fv(x.pk) + '×' + x.pr + (x.prpe ? '<br>@' + fRpe(x.prpe) : '') : '—'}</span>
           <input class="num" value="${fv(x.kg)}" inputmode="decimal" data-in="kg" data-ei="${ei}" data-si="${si}" aria-label="Peso serie ${si + 1}">
           <input class="num" value="${x.reps}" inputmode="numeric" data-in="reps" data-ei="${ei}" data-si="${si}" aria-label="Reps serie ${si + 1}">
-          <input class="num${x.rpe && e.cap && x.rpe > e.cap ? ' over' : ''}" value="${x.rpe ? fRpe(x.rpe) : ''}" placeholder="–" inputmode="decimal" data-in="rpe" data-ei="${ei}" data-si="${si}" aria-label="RPE serie ${si + 1}">
+          <input class="num${x.rpe && e.cap && x.rpe > e.cap ? ' over' : ''}" value="${x.rpe ? fRpe(x.rpe) : ''}" placeholder="${x.trpe != null ? fRpe(x.trpe) : '–'}" inputmode="decimal" data-in="rpe" data-ei="${ei}" data-si="${si}" aria-label="RPE serie ${si + 1}">
           <button class="check${x.done ? ' on' : ''}" data-act="toggle" data-ei="${ei}" data-si="${si}" aria-label="Completar serie ${si + 1}">${x.done ? '✓' : ''}</button>
         </div>`).join('');
       const canRm = e.sets.length > 1 && !e.sets[e.sets.length - 1].done;
       body = `
         <div class="chips mt14">${chips}</div>
         ${bloquePrevio(a)}
-        ${hintSubida(e)}
+        ${vCoach(e)}
         <div class="card mt14" style="padding:16px 12px 12px">
           <div class="ex-head" style="margin-bottom:10px"><div class="ex-tag" style="height:36px;background:${e.color}"></div>
           <div style="flex:1;min-width:0"><div class="ex-name">${esc(e.nombre)}</div><div class="mu" style="font-size:12px">${esc(e.meta)}</div>${e.nombre !== e.original ? `<div class="mu" style="font-size:12px">Sustituye a ${esc(e.original)}</div>` : ''}</div>
@@ -517,19 +563,16 @@
         <div class="mu" style="font-size:14px;margin-top:4px">${ce.sets.length} series · ${fmt(fv(vol))} ${u} de volumen</div></div>
         <button class="btn btn-w btn-ac btn-big" style="margin-top:22px;font-size:18px" data-act="nextEx">${nextLabel}</button>`;
     } else {
-      const prevSet = si > 0 ? ce.sets[si - 1] : null;
-      const alto = prevSet && prevSet.done && prevSet.rpe && ce.cap && prevSet.rpe > ce.cap;
-      const chips = RPES.map(v => `<button class="rpe${cs.rpe === v ? ' on' : ''}${ce.cap && v > ce.cap ? ' over' : ''}" data-act="rpe" data-v="${v}">${v}</button>`).join('');
+      const chips = RPES.map(v => `<button class="rpe${cs.rpe === v ? ' on' : ''}${ce.cap && v > ce.cap ? ' over' : ''}${cs.trpe === v ? ' target' : ''}" data-act="rpe" data-v="${v}">${v}</button>`).join('');
       inner = `
         <div class="mt18" style="text-align:center"><div class="c" style="font-size:18px;letter-spacing:2px;color:${ce.color}">SERIE ${si + 1} DE ${ce.sets.length}</div>
         <div class="mu" style="font-size:13px;margin-top:2px">Anterior · ${cs.pk != null ? fv(cs.pk) + ' × ' + cs.pr + (cs.prpe ? ' @ RPE ' + fRpe(cs.prpe) : '') : '—'}</div></div>
-        ${hintSubida(ce)}
-        ${alto ? `<div class="hint">Serie anterior a RPE ${fRpe(prevSet.rpe)} (techo ${esc(ce.rpe)}). Baja un poco el peso.</div>` : ''}
+        ${vCoach(ce)}
         <div class="grid2 mt14" style="gap:12px">
           <div class="pad"><div class="cap">${u.toUpperCase()}</div><div class="c pad-v">${fv(cs.kg)}</div><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="kgM" aria-label="Menos peso">−</button><button class="step" data-act="kgP" aria-label="Más peso">+</button></div></div>
           <div class="pad"><div class="cap">REPS</div><div class="c pad-v">${cs.reps}</div><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="repM" aria-label="Menos reps">−</button><button class="step" data-act="repP" aria-label="Más reps">+</button></div></div>
         </div>
-        <div class="between mt14"><div class="cap">RPE</div><div class="mu" style="font-size:12px">${ce.rpe ? 'Objetivo ' + esc(ce.rpe) : 'Opcional'}</div></div>
+        <div class="between mt14"><div class="cap">RPE</div><div class="mu" style="font-size:12px">${cs.trpe != null ? 'Objetivo <b style="color:var(--tx)">' + fRpe(cs.trpe) + '</b>' + (ce.cap ? ' · techo ' + fRpe(ce.cap) : '') : ce.rpe ? 'Objetivo ' + esc(ce.rpe) : 'Opcional'}</div></div>
         <div class="rpes mt8">${chips}</div>
         <button class="btn btn-w btn-ac btn-big glow mt14" data-act="complete">Completar serie ✓</button>
         ${ce.notas ? `<div class="notes">${esc(ce.notas)}</div>` : ''}`;
@@ -553,6 +596,17 @@
         <div class="mu" style="font-size:13px;margin:4px 0 12px">Solo para esta sesión. Las series sin completar se rellenan con tu última marca del ejercicio elegido.</div>
         <div style="display:flex;flex-direction:column;gap:8px">${opts}</div>
       </div>`;
+  }
+
+  function vProxima(a) {
+    const items = proximaVez(a);
+    if (!items.length) return '';
+    const u = U();
+    const filas = items.map(({ nombre, plan }) => {
+      const t = plan.sets[0];
+      return `<div class="prox t-${plan.tipo}"><div style="flex:1;min-width:0"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombre)}</div><div class="mu" style="font-size:12px">${esc(plan.titulo)}</div></div><div class="c" style="font-size:22px;flex:none">${t.kg > 0 ? fv(t.kg) + ' ' + u + ' × ' + t.reps : t.reps + ' reps'}</div></div>`;
+    }).join('');
+    return `<div class="lbl mt18">PRÓXIMA VEZ · TU ENTRENADOR</div><div class="card mt8" style="padding:6px 14px">${filas}</div>`;
   }
 
   // ---------- Pantalla: Resumen ----------
@@ -585,6 +639,7 @@
       ${r.sobre ? `<div class="hint">${r.sobre} ${r.sobre === 1 ? 'serie pasó' : 'series pasaron'} del techo de RPE. Ajusta la carga la próxima vez.</div>` : ''}
       <div class="lbl mt18">RÉCORDS NUEVOS · ${r.prs.length}</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${prs}</div>
+      ${vProxima(a)}
       ${cardio}
       <div class="card mt10 row" style="border-radius:18px;padding:14px;gap:12px">
         <div style="flex:1"><div style="font-weight:700">Peso corporal</div><div class="mu" style="font-size:12px">Opcional</div></div>
@@ -866,6 +921,7 @@
     }
     if (ui.edit) h += vSheetRutina();
     if (ui.swap != null && a && s === 'workout') h += vSheetSwap();
+    if (ui.checkin) h += vSheetCheckin();
     if (ui.ajustes) h += vSheetAjustes();
     if (pendiente) {
       h += `<div class="sheet-bg" style="z-index:30" data-act="confNo"></div>
@@ -949,8 +1005,28 @@
     if (!r) return;
     if (!r.ejercicios.length) { toast('Esta rutina no tiene ejercicios'); return; }
     if (D.activo && !(await confirmar('Tienes un entrenamiento en curso. ¿Descartarlo y empezar ' + r.nombre + '?', 'Descartar y empezar', true))) return;
-    D.activo = crearActivo(r); lastRest = 0; save();
-    ui.screen = 'workout'; render();
+    ui.checkin = { rid: r.id, sueno: null, energia: null, dolor: null };
+    renderOverlay();
+  }
+  function arrancar(r, estado) {
+    D.activo = crearActivo(r, estado); lastRest = 0; save();
+    ui.checkin = null; ui.screen = 'workout'; render();
+    if (estado === 'rojo') toast('Hoy vas con −5% de carga y RPE más bajo');
+    else if (estado === 'amarillo') toast('Hoy apuntamos medio punto de RPE más bajo');
+  }
+  function vSheetCheckin() {
+    const c = ui.checkin;
+    const fila = (k, titulo, ops) => `<div class="field-l mt12">${titulo}</div><div class="seg" style="margin-top:6px">${ops.map(([v, l]) => `<button class="${c[k] === v ? 'on' : ''}" data-act="ci" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    return `<div class="sheet-bg" data-act="ciCerrar"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="c" style="font-size:28px">¿CÓMO LLEGAS HOY?</div>
+        <div class="mu" style="font-size:13px;margin-top:4px">Con esto ajusto la carga y el RPE de hoy.</div>
+        ${fila('sueno', 'SUEÑO', [['poco', '< 6 h'], ['justo', '6–7 h'], ['bien', '7 h o más']])}
+        ${fila('energia', 'ENERGÍA', [['baja', 'Baja'], ['normal', 'Normal'], ['alta', 'Alta']])}
+        ${fila('dolor', 'DOLOR O AGUJETAS', [['mucho', 'Mucho'], ['algo', 'Algo'], ['nada', 'Nada']])}
+        <button class="btn btn-w btn-ac mt16" data-act="ciEmpezar">Empezar</button>
+        <div style="text-align:center"><button class="btn-link" data-act="ciSaltar">Saltar, voy normal</button></div>
+      </div>`;
   }
   function setSet(ei, si, p) { Object.assign(D.activo.ejercicios[ei].sets[si], p); save(); }
   function focusSet() {
@@ -967,6 +1043,11 @@
   function responder(v) { const p = pendiente; pendiente = null; renderOverlay(); if (p) p.res(v); }
   const A = {
     confSi: () => responder(true),
+    calent: () => { ui.calent = !ui.calent; render(); },
+    ci: d => { ui.checkin[d.k] = ui.checkin[d.k] === d.v ? null : d.v; renderOverlay(); },
+    ciCerrar: () => { ui.checkin = null; renderOverlay(); },
+    ciSaltar: () => { const r = D.rutinas.find(x => x.id === ui.checkin.rid); arrancar(r, null); },
+    ciEmpezar: () => { const c = ui.checkin, r = D.rutinas.find(x => x.id === c.rid); arrancar(r, Coach.estadoDia(c)); },
     confNo: () => responder(false),
     go: d => { ui.screen = d.k; ui.edit = null; render(); },
     ajustes: () => { ui.ajustes = true; renderOverlay(); },
@@ -993,17 +1074,17 @@
     toggle: d => {
       const a = D.activo, e = a.ejercicios[+d.ei], x = e.sets[+d.si];
       x.done = !x.done;
-      if (x.done) { iniciarDescanso(e.descanso, x.rpe); avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
+      if (x.done) { iniciarDescanso(e.descanso, x.rpe); const aj = ajustar(+d.ei, +d.si); if (aj) toast(aj.txt); else avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
       save(); render();
     },
-    addSet: d => { const e = D.activo.ejercicios[+d.ei], l = e.sets[e.sets.length - 1]; e.sets.push({ kg: l.kg, reps: l.reps, rpe: null, pk: null, pr: null, done: false }); save(); render(); },
+    addSet: d => { const e = D.activo.ejercicios[+d.ei], l = e.sets[e.sets.length - 1]; e.sets.push({ kg: l.kg, reps: l.reps, rpe: null, trpe: l.trpe, treps: l.treps, pk: null, pr: null, done: false }); save(); render(); },
     rmSet: d => { D.activo.ejercicios[+d.ei].sets.pop(); save(); render(); },
-    kgM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: Math.max(0, cs.kg - stepKg()) }); render(); },
-    kgP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: cs.kg + stepKg() }); render(); },
+    kgM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: Math.max(0, cs.kg - stepKg()), manual: true }); render(); },
+    kgP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: cs.kg + stepKg(), manual: true }); render(); },
     repM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: Math.max(0, cs.reps - 1) }); render(); },
     repP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: cs.reps + 1 }); render(); },
     rpe: d => { const { si, cs } = focusSet(), v = +d.v; setSet(D.activo.exi, si, { rpe: cs.rpe === v ? null : v }); render(); },
-    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso, cs.rpe); save(); render(); },
+    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); const aj = ajustar(D.activo.exi, si); if (aj) toast(aj.txt); else avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso, cs.rpe); save(); render(); },
     restAdd: () => { const a = D.activo; if (restLeft(a) > 0) { a.restEnd += 15000; a.restTotal += 15; save(); tick(); } },
     restSkip: () => { D.activo.restEnd = 0; lastRest = 0; save(); render(); },
     restSub: () => { const a = D.activo; if (restLeft(a) > 30) { a.restEnd -= 30000; save(); tick(); } else A.restSkip(); },
@@ -1011,7 +1092,7 @@
     closeSwap: () => { ui.swap = null; renderOverlay(); },
     swapTo: d => {
       const e = D.activo.ejercicios[ui.swap];
-      if (norm(d.n) !== norm(e.nombre)) { e.nombre = d.n; prefill(e.sets, d.n, norm(d.n) === norm(e.original) ? e.kgBase : 0, e.repsBase); save(); }
+      if (norm(d.n) !== norm(e.nombre)) { const a = D.activo; e.nombre = d.n; prefill(e.sets, d.n, norm(d.n) === norm(e.original) ? e.kgBase : 0, e.repsBase); if (e.repsTxt) aplicarPlan(e, planDe({ nombre: d.n, grupo: e.grupo, equipo: e.equipo, reps: e.repsTxt, rpe: a.descarga ? PRG.descarga.rpe : e.rpeTxt, kg: norm(d.n) === norm(e.original) ? e.kgBase : 0 }, e.sets.filter(x => !x.done).length || e.sets.length, a.estado, a.descarga)); save(); }
       ui.swap = null; render();
     },
     saveSummary: async () => {
@@ -1024,7 +1105,7 @@
       const fin = a.fin || Date.now();
       D.sesiones.push({
         id: uid(), fecha: new Date(fin).toISOString(), rutinaId: a.rutinaId, nombre: a.nombre, duracion: Math.round((fin - a.inicio) / 1000),
-        rpeMedio: r.rpe ? Math.round(r.rpe * 100) / 100 : null, cardioMin: parseInt(a.cardio) || 0, ...(a.descarga ? { descarga: true } : {}), ejercicios
+        rpeMedio: r.rpe ? Math.round(r.rpe * 100) / 100 : null, ...(a.estado ? { estado: a.estado } : {}), cardioMin: parseInt(a.cardio) || 0, ...(a.descarga ? { descarga: true } : {}), ejercicios
       });
       D.sesiones.sort((x, y) => x.fecha.localeCompare(y.fecha));
       const bw = toKg(ui.bw);
@@ -1077,7 +1158,7 @@
   const leerRpe = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) || n <= 0 ? null : clamp(Math.round(n * 2) / 2, 1, 10); };
 
   const INPUTS = {
-    kg: (el, d) => { setSet(+d.ei, +d.si, { kg: toKg(el.value) }); updateProgress(); },
+    kg: (el, d) => { setSet(+d.ei, +d.si, { kg: toKg(el.value), manual: true }); updateProgress(); },
     reps: (el, d) => { setSet(+d.ei, +d.si, { reps: parseInt(el.value) || 0 }); updateProgress(); },
     rpe: (el, d) => {
       const v = leerRpe(el.value), e = D.activo.ejercicios[+d.ei];
