@@ -1,7 +1,7 @@
 // Service worker de Fuerza: la app funciona sin conexión en el gimnasio.
 // Estrategia: responde desde caché y actualiza en segundo plano.
 const CACHE = 'fuerza-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'programa.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'programa.js', 'coach.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

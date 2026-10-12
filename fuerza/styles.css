@@ -189,3 +189,20 @@ select.input { appearance: none; -webkit-appearance: none; font-weight: 500; fon
 /* Progresión y ejercicios futuros */
 .hint.ok { color: var(--b1); background: rgba(159,180,214,.10); border-color: rgba(159,180,214,.35); }
 .pill.futuro { border-style: dashed; opacity: .7; }
+
+/* Entrenador */
+.coach { background: linear-gradient(135deg, rgba(92,134,201,.16), rgba(19,26,39,.9)); border: 1px solid rgba(159,180,214,.35); border-radius: 18px; padding: 12px 14px; }
+.coach-t { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: rgba(159,180,214,.18); color: var(--b1); }
+.coach.t-subir .coach-t, .coach.t-facil .coach-t, .prox.t-subir .mu, .prox.t-facil .mu { color: #9FD6B4; }
+.coach.t-subir .coach-t, .coach.t-facil .coach-t { background: rgba(159,214,180,.16); }
+.coach.t-bajar .coach-t, .coach.t-estancado .coach-t, .prox.t-bajar .mu, .prox.t-estancado .mu { color: var(--warn); }
+.coach.t-bajar .coach-t, .coach.t-estancado .coach-t { background: rgba(232,184,106,.14); }
+.coach-plan { font-size: 24px; margin-top: 6px; line-height: 1.1; }
+.coach-m { font-size: 13px; color: var(--mu); margin-top: 6px; line-height: 1.4; }
+.coach-a { font-size: 13px; color: var(--tx); margin-top: 6px; line-height: 1.4; }
+.coach-a::before { content: '↻ '; color: var(--b1); font-weight: 700; }
+.rpe.target { outline: 2px dashed var(--b1); outline-offset: 2px; }
+.preview { background: rgba(10,14,23,.35); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.prox { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--bd); }
+.prox:first-child { border-top: 0; }
+.fold { display: flex; justify-content: space-between; align-items: center; width: 100%; background: none; border: 0; padding: 0; color: inherit; font: 500 13px 'DM Sans'; text-align: left; }

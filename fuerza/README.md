@@ -10,6 +10,21 @@ App web (PWA) para registrar el entrenamiento de fuerza desde el móvil. Funcion
 - **Rutinas**: ver, editar, crear y empezar rutinas.
 - **Progreso**: peso con tendencia y meta, fotos privadas con comparador antes/después y fuerza por ejercicio (1RM estimado, mejores marcas y series por grupo muscular).
 
+## Entrenador
+
+[`coach.js`](coach.js) decide la carga, las repeticiones y el RPE de cada serie con las reglas del programa, sin conexión:
+
+- **Doble progresión**: con el rango alto completo en todas las series, sin pasar el techo de RPE, sube la carga (+2.5 kg tren superior, +5 kg tren inferior) y vuelve al rango bajo. Si no, mantiene el peso y pide una repetición más por serie.
+- **Demasiado duro**: si la última sesión pasó el techo de RPE, baja la carga.
+- **Demasiado fácil**: si la última sesión quedó 1.5 puntos o más por debajo del objetivo, sube antes de tiempo.
+- **Estancamiento**: dos sesiones sin llegar al rango bajo → −10 %.
+- **En vivo**: si una serie sale un punto de RPE o más por encima del objetivo, baja las siguientes; si sobra mucho, las sube. Si cambias el peso de una serie a mano, esa serie se respeta.
+- **Estado del día**: antes de empezar pregunta sueño, energía y dolor. En amarillo apunta medio punto de RPE por debajo; en rojo, además, −5 % de carga.
+- Redondea a cargas reales: mancuernas de 2 en 2 y barra, máquina y polea de 2.5 en 2.5.
+- Al terminar, propone la carga de la próxima sesión.
+
+Pruebas: `node --test tests/fuerza_coach.test.js`.
+
 ## Programa
 
 Las rutinas se definen en [`programa.js`](programa.js). Para cargar un programa nuevo, edítalo y **sube `version`**: la app reemplaza las rutinas y conserva el historial, el peso y las fotos.
