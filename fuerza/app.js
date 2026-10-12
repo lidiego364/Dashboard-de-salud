@@ -88,11 +88,9 @@
 
   // ---------- Unidades ----------
   const U = () => D.ajustes.unidad;
-  const fv = kg => U() === 'kg' ? Math.round(kg * 10) / 10 : Math.round(kg * LB);
+  const fv = kg => U() === 'kg' ? Math.round(kg * 10) / 10 : Math.round(kg * LB * 2) / 2;
   const toKg = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : U() === 'kg' ? n : n / LB; };
   const fmt = n => Math.round(n).toLocaleString('es-ES');
-  const stepKg = () => U() === 'kg' ? 2.5 : 5 / LB;
-  const redondeo = kg => Math.round(kg / stepKg()) * stepKg();
 
   // ---------- Programa ----------
   function enDescarga(d = new Date()) { const f = isoDia(d); return (PRG.descargas || []).find(([a, b]) => f >= a && f <= b) || null; }
@@ -209,7 +207,7 @@
   }
   // Plan del entrenador (coach.js) para un ejercicio de la rutina.
   function planDe(e, n, estado, desc) {
-    return Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: n, reps: e.reps, rpe: e.rpe, kg: e.kg || 0 }, historialEj(e.nombre), { estado, descarga: desc, inc: PRG.progresion });
+    return Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: n, reps: e.reps, rpe: e.rpe, kg: e.kg || 0 }, historialEj(e.nombre), { estado, descarga: desc, inc: PRG.progresion, unidad: U() });
   }
   function aplicarPlan(ej, plan) {
     ej.sets.forEach((x, j) => {
@@ -244,7 +242,7 @@
   // Ajuste en vivo de las series que quedan según el RPE de la que acaba de terminar.
   function ajustar(ei, si) {
     const e = D.activo.ejercicios[ei], x = e.sets[si];
-    const aj = Coach.ajusteSerie({ kg: x.kg, reps: x.reps, rpe: x.rpe }, { rpe: x.trpe, reps: x.treps }, e.low || 0, e.equipo);
+    const aj = Coach.ajusteSerie({ kg: x.kg, reps: x.reps, rpe: x.rpe }, { rpe: x.trpe, reps: x.treps }, e.low || 0, e.equipo, U());
     if (!aj) return null;
     let n = 0;
     e.sets.forEach((y, j) => { if (j > si && !y.done && !y.manual) { y.kg = Math.max(0, y.kg + aj.delta); n++; } });
@@ -257,7 +255,7 @@
       const hechas = e.sets.filter(x => x.done && x.reps > 0).map(x => ({ kg: x.kg, reps: x.reps, rpe: x.rpe }));
       if (!hechas.length) return null;
       const hist = historialEj(e.nombre).concat([{ sets: hechas, descarga: !!a.descarga }]);
-      const p = Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: e.seriesFull || e.sets.length, reps: e.repsTxt || e.top || 8, rpe: e.rpeTxt != null ? e.rpeTxt : e.rpe }, hist, { inc: PRG.progresion });
+      const p = Coach.planEjercicio({ nombre: e.nombre, grupo: e.grupo, equipo: e.equipo, series: e.seriesFull || e.sets.length, reps: e.repsTxt || e.top || 8, rpe: e.rpeTxt != null ? e.rpeTxt : e.rpe }, hist, { inc: PRG.progresion, unidad: U() });
       return { nombre: e.nombre, plan: p };
     }).filter(Boolean);
   }
@@ -306,8 +304,8 @@
     });
     return { ...p, prs, rpe: rn ? rs / rn : null, sobre };
   }
-  function aproximacion(kg) {
-    return [[.5, '5'], [.7, '3'], [.85, '1-2']].map(([p, r]) => fv(redondeo(kg * p)) + '×' + r).join(' → ') + ' → ' + fv(kg) + ' ' + U();
+  function aproximacion(kg, equipo) {
+    return [[.5, '5'], [.7, '3'], [.85, '1-2']].map(([p, r]) => fv(Coach.redondear(kg * p, equipo, U())) + '×' + r).join(' → ') + ' → ' + fv(kg) + ' ' + U();
   }
   function bloquePrevio(a) {
     const nada = a.ejercicios.every(e => e.sets.every(s => !s.done));
@@ -320,7 +318,7 @@
     }
     const e0 = a.ejercicios[0];
     if (a.exi === 0 && e0.sets.every(s => !s.done) && e0.sets[0].kg > 0) {
-      h += `<div class="card info mt10"><div class="cap">APROXIMACIÓN · SOLO EN EL PRIMERO</div><div class="info-l c" style="font-size:20px;color:var(--tx)">${aproximacion(e0.sets[0].kg)}</div>${PRG.calentamiento && PRG.calentamiento.aproximacion ? `<div class="info-l">${esc(PRG.calentamiento.aproximacion)}</div>` : ''}</div>`;
+      h += `<div class="card info mt10"><div class="cap">APROXIMACIÓN · SOLO EN EL PRIMERO</div><div class="info-l c" style="font-size:20px;color:var(--tx)">${aproximacion(e0.sets[0].kg, e0.equipo)}</div>${PRG.calentamiento && PRG.calentamiento.aproximacion ? `<div class="info-l">${esc(PRG.calentamiento.aproximacion)}</div>` : ''}</div>`;
     }
     if (nada && a.descarga && PRG.descarga) h += `<div class="notes" style="color:var(--b1)">Descarga: mismo peso que la semana pasada, mitad de series y RPE ${esc(PRG.descarga.rpe)}.</div>`;
     if (nada && a.nota) h += `<div class="notes">${esc(a.nota)}</div>`;
@@ -817,7 +815,7 @@
   }
   function vFuerza() {
     const L = liftsHist(), u = U();
-    if (!L.length) return vVolumen() + '<div class="card mt10 empty">Completa tu primer entrenamiento para ver aquí tu 1RM estimado, mejores marcas y récords por ejercicio.</div>';
+    if (!L.length) return vVolumen() + '<div class="card mt10 empty">Completa tu primer entrenamiento para ver aquí tu 1RM estimado, mejores marcas y récords por ejercicio.<br><button class="btn-out mt12" data-act="import">Importar historial de StrengthLab</button></div>';
     const cur = L.find(l => norm(l.nombre) === norm(ui.lift)) || L[0];
     const chips = L.slice(0, 15).map(l => `<button class="chip soft${l === cur ? ' on' : ''}" data-act="lift" data-n="${esc(l.nombre)}">${esc(l.nombre)}</button>`).join('');
     let best = { v: -1 }, orm = { v: -1 }, volS = { v: -1 }, reps = { v: -1 }, vol30 = 0;
@@ -890,6 +888,7 @@
         <div class="field-l mt18">COPIA DE SEGURIDAD</div>
         <div class="mu" style="font-size:12px;margin-top:4px">Los datos viven en este dispositivo. Exporta una copia de vez en cuando (las fotos no se incluyen).</div>
         <div class="grid2 mt10"><button class="btn btn-ghost" data-act="export">Exportar</button><button class="btn btn-ghost" data-act="import">Importar</button></div>
+        <div class="mu" style="font-size:12px;margin-top:6px">Importar acepta una copia de Fuerza (.json) o tu historial de StrengthLab (.csv), que se añade sin borrar nada.</div>
         <div style="text-align:center;margin-top:8px"><button class="btn-link danger" data-act="reset">Borrar todos los datos</button></div>` : ''}
       </div>`;
   }
@@ -1079,8 +1078,8 @@
     },
     addSet: d => { const e = D.activo.ejercicios[+d.ei], l = e.sets[e.sets.length - 1]; e.sets.push({ kg: l.kg, reps: l.reps, rpe: null, trpe: l.trpe, treps: l.treps, pk: null, pr: null, done: false }); save(); render(); },
     rmSet: d => { D.activo.ejercicios[+d.ei].sets.pop(); save(); render(); },
-    kgM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: Math.max(0, cs.kg - stepKg()), manual: true }); render(); },
-    kgP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: cs.kg + stepKg(), manual: true }); render(); },
+    kgM: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: Math.max(0, cs.kg - Coach.paso(Math.max(cs.kg, 1), ce.equipo, U())), manual: true }); render(); },
+    kgP: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { kg: cs.kg + Coach.paso(Math.max(cs.kg, 1), ce.equipo, U()), manual: true }); render(); },
     repM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: Math.max(0, cs.reps - 1) }); render(); },
     repP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: cs.reps + 1 }); render(); },
     rpe: d => { const { si, cs } = focusSet(), v = +d.v; setSet(D.activo.exi, si, { rpe: cs.rpe === v ? null : v }); render(); },
@@ -1227,7 +1226,9 @@
     const file = ev.target.files[0]; ev.target.value = '';
     if (!file) return;
     try {
-      const d = JSON.parse(await file.text());
+      const texto = await file.text();
+      if (!/^\s*\{/.test(texto)) { await importarCSV(texto); return; }
+      const d = JSON.parse(texto);
       if (!d || d.version !== 1 || !Array.isArray(d.sesiones)) throw new Error('formato');
       if (!(await confirmar('Esto reemplazará los datos actuales por los de la copia.', 'Importar'))) return;
       const def = defaults();
@@ -1235,6 +1236,26 @@
       save(); ui.ajustes = false; ui.screen = 'hoy'; render(); toast('Copia importada');
     } catch (e) { toast('Archivo no válido'); }
   });
+  // Historial de StrengthLab: se añade al de Fuerza sin duplicar sesiones ya importadas.
+  async function importarCSV(texto) {
+    const filas = Importar.parseCSV(texto);
+    if (!Importar.esStrengthLab(filas)) { toast('Este CSV no es un historial de StrengthLab'); return; }
+    const r = Importar.convertir(filas, PRG);
+    const ya = new Set(D.sesiones.map(s => s.origen).filter(Boolean));
+    const nuevas = r.sesiones.filter(s => !ya.has(s.origen));
+    if (!nuevas.length) { toast('Ese historial ya estaba importado'); return; }
+    const series = nuevas.reduce((n, s) => n + s.ejercicios.reduce((m, e) => m + e.sets.length, 0), 0);
+    const desde = fechaCorta(nuevas[0].fecha), hasta = fechaCorta(nuevas[nuevas.length - 1].fecha);
+    let msg = `Añadir ${nuevas.length} sesiones (${series} series) de StrengthLab, del ${desde} al ${hasta}. No se borra nada.`;
+    if (r.correcciones.length) msg += ` Corrijo ${r.correcciones.length} series con la unidad mal marcada.`;
+    if (r.unidadDominante !== U()) msg += ` Registras en ${r.unidadDominante}: cambio la app a ${r.unidadDominante}.`;
+    if (!(await confirmar(msg, 'Importar'))) return;
+    nuevas.forEach(s => D.sesiones.push({ id: uid(), ...s }));
+    D.sesiones.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    D.ajustes.unidad = r.unidadDominante;
+    save(); ui.ajustes = false; render();
+    toast(`Importadas ${nuevas.length} sesiones: el entrenador ya conoce tus cargas`);
+  }
   window.addEventListener('online', () => { if (ui.screen === 'hoy') render(); });
   window.addEventListener('offline', () => { if (ui.screen === 'hoy') render(); });
 

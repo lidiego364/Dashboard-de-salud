@@ -25,6 +25,17 @@ App web (PWA) para registrar el entrenamiento de fuerza desde el móvil. Funcion
 
 Pruebas: `node --test tests/fuerza_coach.test.js`.
 
+## Importar historial de StrengthLab
+
+En Ajustes → *Importar* (o en Progreso → Fuerza, si aún no hay historial) elige el CSV exportado de StrengthLab (`progreso-strengthlab-*.csv`). [`importar.js`](importar.js):
+
+- Usa el peso ya convertido a kg y corrige las series con la unidad mal marcada (por ejemplo "14 kg" en un ejercicio que siempre va en "14 lb").
+- Traduce entrenamientos y ejercicios a los del programa por nombre, por `alias` (en `programa.js`) o, para la rutina, por día de la semana.
+- Añade las sesiones sin borrar nada, y reimportar el mismo archivo no duplica.
+- Si casi todo está en libras, cambia la app a lb. El entrenador entonces trabaja con saltos de libras: barra y Smith de 5 en 5, barra Z, poleas y máquinas de 2.5 en 2.5, y mancuernas de 2 en 2.
+
+El historial nunca sale del teléfono: el CSV se lee en el navegador.
+
 ## Programa
 
 Las rutinas se definen en [`programa.js`](programa.js). Para cargar un programa nuevo, edítalo y **sube `version`**: la app reemplaza las rutinas y conserva el historial, el peso y las fotos.

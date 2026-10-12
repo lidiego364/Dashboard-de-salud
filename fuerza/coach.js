@@ -39,26 +39,46 @@
   }
 
   const sinTildes = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  // Saltos de carga reales: mancuernas de 2 en 2 (de 1 en 1 por debajo de 10 kg);
-  // barra, máquina y polea de 2.5 en 2.5 (de 1 en 1 por debajo de 20 kg).
-  function pasoDe(kg, equipo) {
-    if (/mancuerna/.test(sinTildes(equipo))) return kg >= 10 ? 2 : 1;
+  const LB = 2.2046;
+  const esMancuerna = eq => /mancuerna/.test(sinTildes(eq));
+  // Salto de carga real del equipo, devuelto en kg.
+  //   kg: mancuernas de 2 en 2 (1 por debajo de 10 kg); barra, máquina y polea de 2.5 (1 por debajo de 20 kg).
+  //   lb: mancuernas de 2 en 2; barra, Smith y barra T de 5 en 5; barra Z, poleas y máquinas de 2.5 en 2.5.
+  function pasoDe(kg, equipo, unidad) {
+    const e = sinTildes(equipo);
+    if (unidad === 'lb') {
+      const lb = kg * LB;
+      let p;
+      if (esMancuerna(e)) p = 2;
+      else if (/barra z/.test(e)) p = 2.5;
+      else if (/barra|smith/.test(e)) p = 5;
+      else p = lb >= 20 ? 2.5 : 1;
+      return p / LB;
+    }
+    if (esMancuerna(e)) return kg >= 10 ? 2 : 1;
     return kg >= 20 ? 2.5 : 1;
   }
-  function redondear(kg, equipo) {
+  const limpio = kg => Math.round(kg * 10000) / 10000;
+  function redondear(kg, equipo, unidad) {
     if (kg <= 0) return 0;
-    const p = pasoDe(kg, equipo);
-    return Math.round(Math.round(kg / p) * p * 100) / 100;
+    const p = pasoDe(kg, equipo, unidad);
+    return limpio(Math.round(kg / p) * p);
   }
-  // Baja al menos un salto de carga respecto a kg.
-  const bajarA = (objetivo, kg, eq) => Math.min(redondear(objetivo, eq), Math.max(0, kg - pasoDe(kg, eq)));
+  // Mueve la carga un número entero de saltos del equipo, así se respeta la escala que ya usas
+  // (si vas en 42.5 lb, sube a 47.5 y no a 50).
+  function saltos(kg, fraccion, eq, u, sube) {
+    const p = pasoDe(kg, eq, u);
+    const n = sube && esMancuerna(eq) ? 1 : Math.max(1, Math.round(fraccion / p));
+    return limpio(Math.max(0, kg + (sube ? n : -n) * p));
+  }
 
   const esInferior = g => /cuadri|isquio|glute|gemelo|pierna|femoral/.test(sinTildes(g));
 
   const media = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
-  const fmtKg = kg => String(Math.round(kg * 10) / 10);
+  let unidadTxt = 'kg';
+  const fmtKg = kg => unidadTxt === 'lb' ? String(Math.round(kg * LB * 2) / 2) + ' lb' : String(Math.round(kg * 10) / 10) + ' kg';
   const fmtRpe = v => String(Math.round(v * 10) / 10);
-  const resumenSets = sets => fmtKg(Math.max(...sets.map(s => s.kg))) + ' kg × ' + sets.map(s => s.reps).join(', ');
+  const resumenSets = sets => fmtKg(Math.max(...sets.map(s => s.kg))) + ' × ' + sets.map(s => s.reps).join(', ');
 
   // Estado del día a partir del check-in: verde, amarillo o rojo.
   function estadoDia(c) {
@@ -70,9 +90,11 @@
 
   // ej: { nombre, grupo, equipo, series, reps, rpe, kg }
   // hist: sesiones anteriores de ese ejercicio, en orden: [{ fecha, sets: [{ kg, reps, rpe }], descarga }]
-  // opts: { estado: 'verde'|'amarillo'|'rojo', descarga: bool, inc: { superior, inferior } }
+  // opts: { estado: 'verde'|'amarillo'|'rojo', descarga: bool, inc: { superior, inferior }, unidad: 'kg'|'lb' }
   function planEjercicio(ej, hist, opts) {
     opts = opts || {};
+    const u = opts.unidad === 'lb' ? 'lb' : 'kg';
+    unidadTxt = u;
     const n = Math.max(1, ej.series | 0);
     const { low, top } = rangoReps(ej.reps);
     const rr = rangoRpe(opts.descarga ? '6' : ej.rpe);
@@ -105,44 +127,44 @@
       const sinPesoExtra = lastKg <= 0;
 
       if (prev && falla(last) && falla(prev) && prevKg != null && lastKg >= prevKg && (rpeLast == null || rpeLast >= rr.lo) && !sinPesoExtra) {
-        kg = bajarA(lastKg * 0.9, lastKg, eq);
+        kg = saltos(lastKg, lastKg * 0.1, eq, u, false);
         reps = Array(n).fill(low);
         tipo = 'estancado'; titulo = 'Bajar 10%';
         motivo = 'Dos sesiones sin llegar a ' + low + ' reps. Según tu programa: baja 10% durante 2–3 semanas y vuelve a construir. Revisa también sueño, calorías y proteína.';
       } else if (rpeLast != null && rr.cap && rpeLast > rr.cap + 0.4 && !sinPesoExtra) {
-        kg = bajarA(lastKg * 0.95, lastKg, eq);
+        kg = saltos(lastKg, lastKg * 0.05, eq, u, false);
         reps = Array(n).fill(low);
         tipo = 'bajar'; titulo = 'Bajar carga';
         motivo = 'La última vez fuiste a RPE ' + fmtRpe(rpeLast) + ' con techo ' + fmtRpe(rr.cap) + '. Baja un poco y mantén la técnica.';
       } else if (alTope && (rpeLast == null || !rr.cap || rpeLast <= rr.cap + 0.01)) {
-        kg = sinPesoExtra ? 0 : Math.max(redondear(lastKg + inc, eq), lastKg + pasoDe(lastKg, eq));
+        kg = sinPesoExtra ? 0 : saltos(lastKg, inc, eq, u, true);
         reps = Array(n).fill(sinPesoExtra ? top : low);
-        tipo = 'subir'; titulo = sinPesoExtra ? 'Añade lastre o dificultad' : 'Subir ' + fmtKg(kg - lastKg) + ' kg';
+        tipo = 'subir'; titulo = sinPesoExtra ? 'Añade lastre o dificultad' : 'Subir ' + fmtKg(kg - lastKg);
         motivo = sinPesoExtra
           ? 'Llegaste a ' + top + ' reps en todas las series: añade lastre o hazlo más difícil.'
-          : 'Llegaste a ' + top + ' reps en todas las series' + (rpeLast != null ? ' a RPE ' + fmtRpe(rpeLast) : '') + '. Doble progresión: +' + fmtKg(kg - lastKg) + ' kg y vuelve a ' + low + ' reps.';
+          : 'Llegaste a ' + top + ' reps en todas las series' + (rpeLast != null ? ' a RPE ' + fmtRpe(rpeLast) : '') + '. Doble progresión: +' + fmtKg(kg - lastKg) + ' y vuelve a ' + low + ' reps.';
       } else if (rpeLast != null && rpeLast <= rr.lo - 1.5 && !falla(last) && !sinPesoExtra) {
-        kg = Math.max(redondear(lastKg + inc, eq), lastKg + pasoDe(lastKg, eq));
+        kg = saltos(lastKg, inc, eq, u, true);
         reps = Array(n).fill(low);
-        tipo = 'facil'; titulo = 'Subir ' + fmtKg(kg - lastKg) + ' kg';
+        tipo = 'facil'; titulo = 'Subir ' + fmtKg(kg - lastKg);
         motivo = 'La última vez te quedó fácil (RPE ' + fmtRpe(rpeLast) + ' con objetivo ' + fmtRpe(rr.lo) + '). Sube ya, sin esperar al rango alto.';
       } else if (falla(last)) {
         kg = lastKg;
         reps = Array(n).fill(low);
         tipo = 'repetir'; titulo = 'Repetir peso';
-        motivo = 'No llegaste a ' + low + ' reps en todas las series. Repite ' + fmtKg(lastKg) + ' kg y busca ' + low + ' en todas.';
+        motivo = 'No llegaste a ' + low + ' reps en todas las series. Repite ' + fmtKg(lastKg) + ' y busca ' + low + ' en todas.';
       } else {
         kg = lastKg;
         reps = Array.from({ length: n }, (_, i) => Math.min(top, (lastReps[i] != null ? lastReps[i] : lastReps[lastReps.length - 1]) + 1));
         tipo = 'mantener'; titulo = 'Mantener y sumar reps';
-        motivo = 'Mantén ' + fmtKg(lastKg) + ' kg y suma 1 rep por serie hasta llegar a ' + top + ' en todas.';
+        motivo = 'Mantén ' + fmtKg(lastKg) + ' y suma 1 rep por serie hasta llegar a ' + top + ' en todas.';
       }
       motivo += ' Última vez: ' + resumenSets(last.sets) + (rpeLast != null ? ' @ RPE ' + fmtRpe(rpeLast) : '') + '.';
     }
 
     let rpeAjuste = 0;
     if (opts.estado === 'rojo') {
-      if (kg > 0 && tipo !== 'primera') kg = bajarA(kg * 0.95, kg, eq);
+      if (kg > 0 && tipo !== 'primera') kg = saltos(kg, kg * 0.05, eq, u, false);
       rpeAjuste = -0.5;
       motivo += ' Hoy llegas cansado: −5% de carga y RPE medio punto más bajo.';
     } else if (opts.estado === 'amarillo') {
@@ -157,20 +179,21 @@
   }
 
   // Ajuste en vivo tras completar una serie. Devuelve los kg a sumar a las series que quedan.
-  function ajusteSerie(hecho, objetivo, low, equipo) {
+  function ajusteSerie(hecho, objetivo, low, equipo, unidad) {
     if (!hecho || hecho.rpe == null || !objetivo || objetivo.rpe == null || !(hecho.kg > 0)) return null;
-    const d = hecho.rpe - objetivo.rpe, paso = pasoDe(hecho.kg, equipo);
+    unidadTxt = unidad === 'lb' ? 'lb' : 'kg';
+    const d = hecho.rpe - objetivo.rpe, paso = pasoDe(hecho.kg, equipo, unidad);
     if (d >= 1 || hecho.reps < low) {
       const delta = -Math.min(hecho.kg, paso * (d >= 2 ? 2 : 1));
-      return { delta, txt: 'Serie a RPE ' + fmtRpe(hecho.rpe) + (hecho.reps < low ? ' y por debajo de ' + low + ' reps' : '') + ' (objetivo ' + fmtRpe(objetivo.rpe) + '): bajo a ' + fmtKg(hecho.kg + delta) + ' kg.' };
+      return { delta, txt: 'Serie a RPE ' + fmtRpe(hecho.rpe) + (hecho.reps < low ? ' y por debajo de ' + low + ' reps' : '') + ' (objetivo ' + fmtRpe(objetivo.rpe) + '): bajo a ' + fmtKg(hecho.kg + delta) + '.' };
     }
     if (d <= -1.5 && hecho.reps >= objetivo.reps) {
-      return { delta: paso, txt: 'Te sobró: RPE ' + fmtRpe(hecho.rpe) + ' con objetivo ' + fmtRpe(objetivo.rpe) + '. Subo a ' + fmtKg(hecho.kg + paso) + ' kg.' };
+      return { delta: paso, txt: 'Te sobró: RPE ' + fmtRpe(hecho.rpe) + ' con objetivo ' + fmtRpe(objetivo.rpe) + '. Subo a ' + fmtKg(hecho.kg + paso) + '.' };
     }
     return null;
   }
 
-  const Coach = { rangoReps, rangoRpe, objetivoRpe, redondear, estadoDia, planEjercicio, ajusteSerie, esInferior };
+  const Coach = { rangoReps, rangoRpe, objetivoRpe, redondear, paso: pasoDe, estadoDia, planEjercicio, ajusteSerie, esInferior };
   if (typeof module !== 'undefined' && module.exports) module.exports = Coach;
   else root.Coach = Coach;
 })(typeof window !== 'undefined' ? window : globalThis);
