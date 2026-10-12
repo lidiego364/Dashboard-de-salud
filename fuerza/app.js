@@ -831,6 +831,11 @@
     if (ui.edit) h += vSheetRutina();
     if (ui.swap != null && a && s === 'workout') h += vSheetSwap();
     if (ui.ajustes) h += vSheetAjustes();
+    if (pendiente) {
+      h += `<div class="sheet-bg" style="z-index:30" data-act="confNo"></div>
+        <div class="dialog" role="alertdialog" aria-modal="true"><div class="dialog-msg">${esc(pendiente.msg)}</div>
+        <div class="grid2"><button class="btn btn-ghost" data-act="confNo">Cancelar</button><button class="btn ${pendiente.peligro ? 'btn-danger' : 'btn-ac'}" data-act="confSi">${esc(pendiente.ok)}</button></div></div>`;
+    }
     return h;
   }
 
@@ -904,10 +909,10 @@
   setInterval(tick, 500);
 
   // ---------- Acciones ----------
-  function empezar(r) {
+  async function empezar(r) {
     if (!r) return;
     if (!r.ejercicios.length) { toast('Esta rutina no tiene ejercicios'); return; }
-    if (D.activo && !confirm('Tienes un entrenamiento en curso. ¿Descartarlo y empezar ' + r.nombre + '?')) return;
+    if (D.activo && !(await confirmar('Tienes un entrenamiento en curso. ¿Descartarlo y empezar ' + r.nombre + '?', 'Descartar y empezar', true))) return;
     D.activo = crearActivo(r); lastRest = 0; save();
     ui.screen = 'workout'; render();
   }
@@ -918,7 +923,15 @@
     if (si < 0) si = ce.sets.length - 1;
     return { ce, si, cs: ce.sets[si] };
   }
+  let pendiente = null;
+  function confirmar(msg, ok = 'Confirmar', peligro = false) {
+    if (pendiente) pendiente.res(false);
+    return new Promise(res => { pendiente = { msg, ok, peligro, res }; renderOverlay(); });
+  }
+  function responder(v) { const p = pendiente; pendiente = null; renderOverlay(); if (p) p.res(v); }
   const A = {
+    confSi: () => responder(true),
+    confNo: () => responder(false),
     go: d => { ui.screen = d.k; ui.edit = null; render(); },
     ajustes: () => { ui.ajustes = true; renderOverlay(); },
     closeAjustes: () => { D.ajustes.onboarded = true; save(); ui.ajustes = false; render(); },
@@ -933,7 +946,7 @@
       else { ui.screen = 'rutinas'; render(); toast(h ? 'Elige qué rutina entrenar' : 'Crea una rutina para empezar'); }
     },
     resume: () => { ui.screen = D.activo.fin ? 'summary' : 'workout'; render(); },
-    discard: () => { if (!confirm('¿Descartar este entrenamiento? No se guardará.')) return; D.activo = null; save(); ui.screen = 'hoy'; render(); },
+    discard: async () => { if (!(await confirmar('¿Descartar este entrenamiento? No se guardará.', 'Descartar', true))) return; D.activo = null; save(); ui.screen = 'hoy'; render(); },
     exit: () => { ui.screen = 'hoy'; render(); },
     finish: () => { D.activo.fin = Date.now(); D.activo.restEnd = 0; lastRest = 0; save(); ui.screen = 'summary'; render(); },
     back: () => { D.activo.inicio += Date.now() - D.activo.fin; D.activo.fin = 0; save(); ui.screen = 'workout'; render(); },
@@ -964,13 +977,13 @@
       if (norm(d.n) !== norm(e.nombre)) { e.nombre = d.n; prefill(e.sets, d.n, norm(d.n) === norm(e.original) ? e.kgBase : 0, e.repsBase); save(); }
       ui.swap = null; render();
     },
-    saveSummary: () => {
+    saveSummary: async () => {
       const a = D.activo, r = resumen(a);
       const ejercicios = a.ejercicios.map(e => ({
         nombre: e.nombre, grupo: e.grupo, ...(e.nombre !== e.original ? { sustituye: e.original } : {}),
         sets: e.sets.filter(s => s.done).map(s => ({ kg: Math.round(s.kg * 100) / 100, reps: s.reps, ...(s.rpe ? { rpe: s.rpe } : {}) }))
       })).filter(e => e.sets.length);
-      if (!ejercicios.length) { if (confirm('No completaste ninguna serie. ¿Descartar el entrenamiento?')) { D.activo = null; save(); ui.screen = 'hoy'; render(); } return; }
+      if (!ejercicios.length) { if (await confirmar('No completaste ninguna serie. ¿Descartar el entrenamiento?', 'Descartar', true)) { D.activo = null; save(); ui.screen = 'hoy'; render(); } return; }
       const fin = a.fin || Date.now();
       D.sesiones.push({
         id: uid(), fecha: new Date(fin).toISOString(), rutinaId: a.rutinaId, nombre: a.nombre, duracion: Math.round((fin - a.inicio) / 1000),
@@ -1002,7 +1015,7 @@
       if (e.idx >= 0) Object.assign(D.rutinas[e.idx], data); else D.rutinas.push(normRutina({ id: uid(), ...data }));
       ui.edit = null; save(); render(); toast('Rutina guardada');
     },
-    delRut: () => { const e = ui.edit; if (!confirm('¿Eliminar ' + D.rutinas[e.idx].nombre + '? El historial se conserva.')) return; D.rutinas.splice(e.idx, 1); ui.edit = null; save(); render(); },
+    delRut: async () => { const e = ui.edit; if (!(await confirmar('¿Eliminar ' + D.rutinas[e.idx].nombre + '? El historial se conserva.', 'Eliminar', true))) return; D.rutinas.splice(e.idx, 1); ui.edit = null; save(); render(); },
     // Progreso
     ptab: d => { ui.ptab = d.k; render(); },
     ang: d => { ui.ang = +d.i; ui.cmp = 50; render(); },
@@ -1010,7 +1023,7 @@
     addPeso: () => { const kg = toKg(ui.nuevoPeso); if (!(kg > 0)) { toast('Escribe tu peso'); return; } registrarPeso(kg); ui.nuevoPeso = ''; save(); render(); toast('Peso registrado'); },
     addFoto: () => $('#fileFoto').click(),
     antes: d => { ui.antes[ANGULOS[ui.ang]] = d.id; render(); },
-    delFoto: async d => { if (!confirm('¿Eliminar esta foto?')) return; try { await FotoDB.del(d.id); } catch (e) { /* ignorar */ } await cargarFotos(); render(); },
+    delFoto: async d => { if (!(await confirmar('¿Eliminar esta foto?', 'Eliminar', true))) return; try { await FotoDB.del(d.id); } catch (e) { /* ignorar */ } await cargarFotos(); render(); },
     // Copias
     export: () => {
       const blob = new Blob([JSON.stringify(D, null, 2)], { type: 'application/json' });
@@ -1018,7 +1031,7 @@
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },
     import: () => $('#fileImport').click(),
-    reset: () => { if (!confirm('Se borrarán rutinas, historial y peso de este dispositivo. ¿Continuar?')) return; localStorage.removeItem(KEY); D = load(); aplicarPrograma(); D.ajustes.onboarded = true; save(); ui.ajustes = false; ui.screen = 'hoy'; render(); }
+    reset: async () => { if (!(await confirmar('Se borrarán rutinas, historial y peso de este dispositivo.', 'Borrar todo', true))) return; localStorage.removeItem(KEY); D = load(); aplicarPrograma(); D.ajustes.onboarded = true; save(); ui.ajustes = false; ui.screen = 'hoy'; render(); }
   };
   function registrarPeso(kg) {
     const f = isoDia(), r = Math.round(kg * 100) / 100, ex = D.peso.find(p => p.fecha === f);
@@ -1098,7 +1111,7 @@
     try {
       const d = JSON.parse(await file.text());
       if (!d || d.version !== 1 || !Array.isArray(d.sesiones)) throw new Error('formato');
-      if (!confirm('Esto reemplazará los datos actuales por los de la copia. ¿Continuar?')) return;
+      if (!(await confirmar('Esto reemplazará los datos actuales por los de la copia.', 'Importar'))) return;
       const def = defaults();
       D = { ...def, ...d, ajustes: { ...def.ajustes, ...d.ajustes, onboarded: true } };
       save(); ui.ajustes = false; ui.screen = 'hoy'; render(); toast('Copia importada');
