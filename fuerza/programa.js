@@ -16,13 +16,13 @@
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
-  version: 2,
+  version: 3,
   nombre: 'Programa de fuerza v6',
   objetivo: 'Recomposición en déficit',
   perfil: { nombre: 'Diego', diasSemana: 5 },
   inicio: '2026-10-12',
   fin: '2026-11-30',
-  descargas: [['2026-10-12', '2026-10-18'], ['2026-11-16', '2026-11-22']],
+  descargas: [], // sin semanas de descarga programadas
   // En semana de descarga: mismos ejercicios y mismo peso, mitad de series (redondeando hacia arriba) y RPE 6.
   descarga: {
     factorSeries: 0.5,
@@ -34,7 +34,7 @@ window.PROGRAMA_FUERZA = {
   extraDescansoRpe: { desde: 9, segundos: 30 }, // si una serie queda en RPE 9+, el siguiente descanso dura 30 s más
   progresion: { superior: 2.5, inferior: 5 }, // doble progresión: kg que se suben al completar el rango alto
   diasLibres: {
-    6: { titulo: 'RAQUETA / SURF', nota: 'Raqueta: máximo 3 sesiones por semana y solo una larga (> 90 min). Si el viernes los isquios quedaron muy cargados, juega corto.' },
+    6: { titulo: 'RAQUETA / SURF', nota: 'Raqueta: máximo 3 sesiones por semana y solo una larga (> 90 min).' },
     7: { titulo: 'DESCANSO TOTAL', nota: 'Hoy no se entrena. Recupera.' }
   },
   calentamiento: {
@@ -79,7 +79,7 @@ window.PROGRAMA_FUERZA = {
     },
     {
       id: 'miercoles-pierna', duracion: '75–85 min', dia: 3, nombre: 'PIERNA + ABDOMEN', enfoque: 'Cuádriceps, femoral, gemelo, abdomen',
-      nota: 'Protege las 25 series. Si algún día no puedes, recorta de abajo hacia arriba (colgado, crunch, extensión), nunca los dos primeros.',
+      nota: 'Protege las 26 series. Si algún día no puedes, recorta de abajo hacia arriba (colgado, crunch, extensión), nunca los dos primeros.',
       movilidad: 'Gato-camello ×10 · 90/90 de cadera ×8/lado · tobillo en pared ×10/lado',
       cardioOmitirSiRpe: 8.5,
       cardioNota: 'Suave. Es lo primero que se recorta: omítela si la sentadilla Smith bajó de calidad o la pierna fue dura (RPE > 8.5).',
@@ -90,7 +90,7 @@ window.PROGRAMA_FUERZA = {
         { nombre: 'Sentadilla búlgara con mancuernas', grupo: 'Cuádriceps', equipo: 'Mancuernas', series: 3, reps: '10-12/pierna', rpe: '7-8', descanso: 120, alternativas: ['Zancada caminando', 'Step-up'], notas: 'El descanso empieza al terminar ambas piernas.' },
         { nombre: 'Extensión de cuádriceps', grupo: 'Cuádriceps', equipo: 'Máquina', series: 2, reps: '12-15', rpe: '9', descanso: 90, alternativas: ['Sissy squat'] },
         { nombre: 'Elevación de gemelo de pie', grupo: 'Gemelo', equipo: 'Máquina', series: 3, reps: '10-15', rpe: '8-9', descanso: 60, alternativas: ['Gemelo en prensa'] },
-        { nombre: 'Crunch en polea', grupo: 'Abdomen', equipo: 'Polea', series: 2, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Crunch en máquina'], notas: 'Cadera fija, flexiona la columna, codos cerca de la cara.' },
+        { nombre: 'Crunch en polea', grupo: 'Abdomen', equipo: 'Polea', series: 3, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Crunch en máquina'], notas: 'Cadera fija, flexiona la columna, codos cerca de la cara.' },
         { nombre: 'Elevación de piernas colgado', grupo: 'Abdomen', equipo: 'Peso corporal', series: 3, reps: '10-15', rpe: '8', descanso: 60, alternativas: ['Reverse crunch'] }
       ]
     },
@@ -107,18 +107,16 @@ window.PROGRAMA_FUERZA = {
       ]
     },
     {
-      id: 'viernes-hombro-brazos', duracion: '80–90 min', dia: 5, nombre: 'HOMBRO, BRAZOS + PIERNA', enfoque: 'Hombro, brazos, isquios y glúteo',
-      nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales, nunca el hip thrust.',
+      id: 'viernes-hombro-brazos', dia: 5, nombre: 'HOMBRO Y BRAZOS', enfoque: 'Hombro, tríceps, bíceps',
+      nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales.',
       ejercicios: [
         { nombre: 'Press militar con mancuernas sentado', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press Arnold', 'Press de hombro en máquina'] },
         { nombre: 'Elevaciones laterales en polea', grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
         { nombre: 'Pájaros en polea', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Reverse pec deck', 'Face pull'] },
         { nombre: 'Fondos en paralelas', grupo: 'Tríceps', equipo: 'Peso corporal', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press cerrado', 'Fondos en máquina'] },
-        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
-        { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
-        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] },
-        { nombre: 'Hip thrust', grupo: 'Isquios / glúteo', equipo: 'Barra', series: 3, reps: '8-10', rpe: '≤ 8.5', descanso: 120, desde: '2026-10-19', alternativas: ['Hip thrust en Smith', 'Puente de glúteo con barra', 'Puente de glúteo en suelo'], notas: 'Espalda alta en el banco, barbilla al pecho, sube hasta alinear pelvis y torso y aprieta el glúteo 1 s. Sin hiperextender la zona lumbar. Empieza ligero las dos primeras semanas. Si molesta la espalda: puente de glúteo en suelo con menos carga.' },
-        { nombre: 'Curl femoral sentado', grupo: 'Isquios / glúteo', equipo: 'Máquina', series: 3, reps: '10-12', rpe: '8-9', descanso: 90, desde: '2026-10-19', alternativas: ['Curl femoral tumbado', 'Curl nórdico'] }
+        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
+        { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
+        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] }
       ]
     }
   ]
