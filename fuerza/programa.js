@@ -17,7 +17,7 @@
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
-  version: 3,
+  version: 4,
   nombre: 'Programa de fuerza v6',
   objetivo: 'Recomposición en déficit',
   perfil: { nombre: 'Diego', diasSemana: 5 },
@@ -71,7 +71,7 @@ window.PROGRAMA_FUERZA = {
       id: 'martes-pull', duracion: '60–70 min', dia: 2, nombre: 'PULL', enfoque: 'Espalda, bíceps, deltoide posterior',
       ejercicios: [
         { nombre: 'Remo con barra inclinado', grupo: 'Espalda', equipo: 'Barra', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Remo con apoyo de pecho', 'Remo Hammer'], notas: 'Demanda lumbar: si molesta la espalda, cambia a remo con apoyo de pecho o Hammer.' },
-        { nombre: 'Dominadas', alias: ['Dominadas (lastradas o asistidas)'], grupo: 'Espalda', equipo: 'Lastradas o asistidas', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Jalón al pecho'], notas: 'Anota el lastre en el peso (0 = solo peso corporal).' },
+        { nombre: 'Jalón al pecho', alias: ['Dominadas', 'Dominadas (lastradas o asistidas)'], grupo: 'Espalda', equipo: 'Máquina de jalón', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Dominadas'], notas: 'En la máquina de jalón al pecho: más peso es más difícil.' },
         { nombre: 'Jalón agarre neutro', grupo: 'Espalda', equipo: 'Polea', series: 3, reps: '10-12', rpe: '8', descanso: 120, alternativas: ['Remo sentado en polea'] },
         { nombre: 'Face pull', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Pájaros en polea', 'Rotación externa con banda'], notas: 'No son opcionales: compensan las sesiones de raqueta.' },
         { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar. Empieza ligero.' },
