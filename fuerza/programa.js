@@ -13,6 +13,7 @@
 //   descanso      Segundos entre series.
 //   alternativas  Sustituciones disponibles durante el entrenamiento.
 //   opcional      true si no cuenta para el volumen planificado.
+//   alias         (opcional) Otros nombres del ejercicio (para importar historial).
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
@@ -57,9 +58,9 @@ window.PROGRAMA_FUERZA = {
       nota: 'Superserie posible: elevaciones laterales con extensión en polea.',
       ejercicios: [
         { nombre: 'Press banca con barra', grupo: 'Pecho', equipo: 'Barra', series: 4, reps: '5-7', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press banca con mancuernas', 'Press de pecho en máquina'], notas: 'Nunca al fallo en básicos.' },
-        { nombre: 'Press militar sentado con barra', grupo: 'Hombro', equipo: 'Barra · respaldo', series: 3, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press de hombro en máquina', 'Press militar en Smith sentado'] },
+        { nombre: 'Press militar sentado con barra', alias: ['Press militar sentado con barra (respaldo)'], grupo: 'Hombro', equipo: 'Barra · respaldo', series: 3, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press de hombro en máquina', 'Press militar en Smith sentado'] },
         { nombre: 'Press inclinado con mancuernas', grupo: 'Pecho', equipo: 'Mancuernas', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press inclinado con barra', 'Press inclinado en máquina'] },
-        { nombre: 'Cruce de poleas de abajo hacia arriba', grupo: 'Pecho', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 75, alternativas: ['Cruce de poleas a media altura', 'Pec deck'] },
+        { nombre: 'Cruce de poleas de abajo hacia arriba', alias: ['Cruce de poleas bajo-alto'], grupo: 'Pecho', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 75, alternativas: ['Cruce de poleas a media altura', 'Pec deck'] },
         { nombre: 'Elevaciones laterales', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales en polea', 'Elevaciones laterales en máquina'] },
         { nombre: 'Press francés con barra Z', grupo: 'Tríceps', equipo: 'Barra Z', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Extensión sobre la cabeza con mancuerna'], notas: 'Enfocado en la cabeza larga.' },
         { nombre: 'Extensión en polea con cuerda', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Extensión en polea con barra recta', 'Extensión de tríceps en máquina'], notas: 'Si recortas, es de lo primero que se quita.' },
@@ -70,7 +71,7 @@ window.PROGRAMA_FUERZA = {
       id: 'martes-pull', duracion: '60–70 min', dia: 2, nombre: 'PULL', enfoque: 'Espalda, bíceps, deltoide posterior',
       ejercicios: [
         { nombre: 'Remo con barra inclinado', grupo: 'Espalda', equipo: 'Barra', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Remo con apoyo de pecho', 'Remo Hammer'], notas: 'Demanda lumbar: si molesta la espalda, cambia a remo con apoyo de pecho o Hammer.' },
-        { nombre: 'Dominadas', grupo: 'Espalda', equipo: 'Lastradas o asistidas', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Jalón al pecho'], notas: 'Anota el lastre en el peso (0 = solo peso corporal).' },
+        { nombre: 'Dominadas', alias: ['Dominadas (lastradas o asistidas)'], grupo: 'Espalda', equipo: 'Lastradas o asistidas', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Jalón al pecho'], notas: 'Anota el lastre en el peso (0 = solo peso corporal).' },
         { nombre: 'Jalón agarre neutro', grupo: 'Espalda', equipo: 'Polea', series: 3, reps: '10-12', rpe: '8', descanso: 120, alternativas: ['Remo sentado en polea'] },
         { nombre: 'Face pull', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Pájaros en polea', 'Rotación externa con banda'], notas: 'No son opcionales: compensan las sesiones de raqueta.' },
         { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar. Empieza ligero.' },
@@ -78,16 +79,16 @@ window.PROGRAMA_FUERZA = {
       ]
     },
     {
-      id: 'miercoles-pierna', duracion: '75–85 min', dia: 3, nombre: 'PIERNA + ABDOMEN', enfoque: 'Cuádriceps, femoral, gemelo, abdomen',
+      id: 'miercoles-pierna', duracion: '75–85 min', dia: 3, nombre: 'PIERNA + ABDOMEN', alias: ['PIERNA + CORE'], enfoque: 'Cuádriceps, femoral, gemelo, abdomen',
       nota: 'Protege las 26 series. Si algún día no puedes, recorta de abajo hacia arriba (colgado, crunch, extensión), nunca los dos primeros.',
       movilidad: 'Gato-camello ×10 · 90/90 de cadera ×8/lado · tobillo en pared ×10/lado',
       cardioOmitirSiRpe: 8.5,
       cardioNota: 'Suave. Es lo primero que se recorta: omítela si la sentadilla Smith bajó de calidad o la pierna fue dura (RPE > 8.5).',
       ejercicios: [
-        { nombre: 'Sentadilla en Smith', grupo: 'Cuádriceps', equipo: 'Smith', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Hack squat', 'Pendulum squat'], notas: 'Pies un palmo por delante de la barra, torso vertical.' },
+        { nombre: 'Sentadilla en Smith', alias: ['Sentadilla en máquina Smith'], grupo: 'Cuádriceps', equipo: 'Smith', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Hack squat', 'Pendulum squat'], notas: 'Pies un palmo por delante de la barra, torso vertical.' },
         { nombre: 'Prensa de piernas', grupo: 'Cuádriceps', equipo: 'Máquina', series: 4, reps: '10-12', rpe: '≤ 8.5', descanso: 150, alternativas: ['Prensa horizontal'] },
         { nombre: 'Curl femoral tumbado', grupo: 'Isquios / glúteo', equipo: 'Máquina', series: 4, reps: '10-12', rpe: '8', descanso: 90, alternativas: ['Curl femoral sentado', 'Curl nórdico'] },
-        { nombre: 'Sentadilla búlgara con mancuernas', grupo: 'Cuádriceps', equipo: 'Mancuernas', series: 3, reps: '10-12/pierna', rpe: '7-8', descanso: 120, alternativas: ['Zancada caminando', 'Step-up'], notas: 'El descanso empieza al terminar ambas piernas.' },
+        { nombre: 'Sentadilla búlgara con mancuernas', alias: ['Sentadilla búlgara'], grupo: 'Cuádriceps', equipo: 'Mancuernas', series: 3, reps: '10-12/pierna', rpe: '7-8', descanso: 120, alternativas: ['Zancada caminando', 'Step-up'], notas: 'El descanso empieza al terminar ambas piernas.' },
         { nombre: 'Extensión de cuádriceps', grupo: 'Cuádriceps', equipo: 'Máquina', series: 2, reps: '12-15', rpe: '9', descanso: 90, alternativas: ['Sissy squat'] },
         { nombre: 'Elevación de gemelo de pie', grupo: 'Gemelo', equipo: 'Máquina', series: 3, reps: '10-15', rpe: '8-9', descanso: 60, alternativas: ['Gemelo en prensa'] },
         { nombre: 'Crunch en polea', grupo: 'Abdomen', equipo: 'Polea', series: 3, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Crunch en máquina'], notas: 'Cadera fija, flexiona la columna, codos cerca de la cara.' },
@@ -99,10 +100,10 @@ window.PROGRAMA_FUERZA = {
       nota: 'Alterna por parejas (1-2, 3-4, 5-6): descansas un patrón mientras trabajas el otro, pero cuenta el descanso completo entre series del mismo ejercicio.',
       ejercicios: [
         { nombre: 'Press inclinado con barra', grupo: 'Pecho', equipo: 'Barra', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press inclinado con mancuernas'] },
-        { nombre: 'Remo en T', grupo: 'Espalda', equipo: 'Barra T', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Remo Hammer', 'Remo con apoyo de pecho', 'Remo sentado en polea'], notas: 'Demanda lumbar: si molesta la espalda, cambia a Hammer o remo sentado en polea.' },
+        { nombre: 'Remo en T', alias: ['Remo en T o remo Hammer'], grupo: 'Espalda', equipo: 'Barra T', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Remo Hammer', 'Remo con apoyo de pecho', 'Remo sentado en polea'], notas: 'Demanda lumbar: si molesta la espalda, cambia a Hammer o remo sentado en polea.' },
         { nombre: 'Press plano con mancuernas', grupo: 'Pecho', equipo: 'Mancuernas', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press de pecho en máquina', 'Fondos en paralelas'] },
         { nombre: 'Remo con mancuerna a una mano', grupo: 'Espalda', equipo: 'Mancuerna', series: 3, reps: '10-12', rpe: '8', descanso: 90, alternativas: ['Remo en polea unilateral'] },
-        { nombre: 'Aperturas en polea', grupo: 'Pecho', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Pec deck', 'Aperturas con mancuernas'] },
+        { nombre: 'Aperturas en polea', alias: ['Aperturas en polea o pec deck'], grupo: 'Pecho', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Pec deck', 'Aperturas con mancuernas'] },
         { nombre: 'Pullover en polea alta', grupo: 'Espalda', equipo: 'Polea', series: 2, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Pullover con mancuerna'] }
       ]
     },
@@ -111,8 +112,8 @@ window.PROGRAMA_FUERZA = {
       nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales.',
       ejercicios: [
         { nombre: 'Press militar con mancuernas sentado', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press Arnold', 'Press de hombro en máquina'] },
-        { nombre: 'Elevaciones laterales en polea', grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
-        { nombre: 'Pájaros en polea', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Reverse pec deck', 'Face pull'] },
+        { nombre: 'Elevaciones laterales en polea', alias: ['Elevaciones laterales'], grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
+        { nombre: 'Pájaros en polea', alias: ['Pájaros en polea a una mano', 'Pájaros en polea o reverse pec deck'], grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Reverse pec deck', 'Face pull'] },
         { nombre: 'Fondos en paralelas', grupo: 'Tríceps', equipo: 'Peso corporal', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press cerrado', 'Fondos en máquina'] },
         { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
         { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
