@@ -34,7 +34,7 @@ window.PROGRAMA_FUERZA = {
   extraDescansoRpe: { desde: 9, segundos: 30 }, // si una serie queda en RPE 9+, el siguiente descanso dura 30 s más
   progresion: { superior: 2.5, inferior: 5 }, // doble progresión: kg que se suben al completar el rango alto
   diasLibres: {
-    6: { titulo: 'RAQUETA / SURF', nota: 'Raqueta: máximo 3 sesiones por semana y solo una larga (> 90 min). Si el viernes los isquios quedaron muy cargados, juega corto.' },
+    6: { titulo: 'RAQUETA / SURF', nota: 'Raqueta: máximo 3 sesiones por semana y solo una larga (> 90 min).' },
     7: { titulo: 'DESCANSO TOTAL', nota: 'Hoy no se entrena. Recupera.' }
   },
   calentamiento: {
@@ -107,8 +107,8 @@ window.PROGRAMA_FUERZA = {
       ]
     },
     {
-      id: 'viernes-hombro-brazos', duracion: '80–90 min', dia: 5, nombre: 'HOMBRO, BRAZOS + PIERNA', enfoque: 'Hombro, brazos, isquios y glúteo',
-      nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales, nunca el hip thrust.',
+      id: 'viernes-hombro-brazos', dia: 5, nombre: 'HOMBRO Y BRAZOS', enfoque: 'Hombro, tríceps, bíceps',
+      nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales.',
       ejercicios: [
         { nombre: 'Press militar con mancuernas sentado', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press Arnold', 'Press de hombro en máquina'] },
         { nombre: 'Elevaciones laterales en polea', grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
@@ -116,9 +116,7 @@ window.PROGRAMA_FUERZA = {
         { nombre: 'Fondos en paralelas', grupo: 'Tríceps', equipo: 'Peso corporal', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press cerrado', 'Fondos en máquina'] },
         { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
         { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
-        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] },
-        { nombre: 'Hip thrust', grupo: 'Isquios / glúteo', equipo: 'Barra', series: 3, reps: '8-10', rpe: '≤ 8.5', descanso: 120, desde: '2026-10-19', alternativas: ['Hip thrust en Smith', 'Puente de glúteo con barra', 'Puente de glúteo en suelo'], notas: 'Espalda alta en el banco, barbilla al pecho, sube hasta alinear pelvis y torso y aprieta el glúteo 1 s. Sin hiperextender la zona lumbar. Empieza ligero las dos primeras semanas. Si molesta la espalda: puente de glúteo en suelo con menos carga.' },
-        { nombre: 'Curl femoral sentado', grupo: 'Isquios / glúteo', equipo: 'Máquina', series: 3, reps: '10-12', rpe: '8-9', descanso: 90, desde: '2026-10-19', alternativas: ['Curl femoral tumbado', 'Curl nórdico'] }
+        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 2, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] }
       ]
     }
   ]
