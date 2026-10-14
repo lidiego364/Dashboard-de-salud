@@ -230,8 +230,11 @@
     return {
       rutinaId: r.id, nombre: r.nombre, nota: r.nota || '', movilidad: r.movilidad || '', cardioNota: r.cardioNota || '', cardioOmitirSiRpe: r.cardioOmitirSiRpe || null,
       inicio: Date.now(), fin: 0, exi: 0, view: 'focus', restEnd: 0, restTotal: 0, restExtra: 0, cardio: '', descarga: desc, estado: estado || null,
-      ejercicios: ejerciciosDe(r).map((e, i) => {
-        const n = seriesPlan(e), rpe = desc ? PRG.descarga.rpe : (e.rpe || '');
+      ejercicios: ejerciciosDe(r).map((e, i) => nuevoEjActivo(e, i, seriesPlan(e), estado, desc))
+    };
+  }
+  function nuevoEjActivo(e, i, n, estado, desc) {
+        const rpe = desc ? PRG.descarga.rpe : (e.rpe || '');
         const sets = Array.from({ length: n }, () => ({ kg: 0, reps: 0, rpe: null, done: false }));
         prefill(sets, e.nombre, e.kg || 0, parseInt(e.reps) || 8);
         const descanso = e.descanso || D.ajustes.descanso;
@@ -243,8 +246,6 @@
         };
         aplicarPlan(ej, planDe(e, n, estado, desc));
         return ej;
-      })
-    };
   }
   // Las series siguientes toman el peso de la que acabas de hacer (salvo las que cambiaste a mano).
   function arrastrar(ei, si) {
@@ -385,7 +386,7 @@
   const ui = {
     screen: D.activo ? (D.activo.fin ? 'summary' : 'workout') : 'hoy',
     ptab: 'peso', ang: 0, cmp: 50, antes: {}, lift: null,
-    edit: null, swap: null, checkin: null, picker: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
+    edit: null, swap: null, checkin: null, picker: null, lista: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
   };
   const scrollPos = {};
   let lastScreen = null, lastRest = restLeft(D.activo);
@@ -540,6 +541,7 @@
       <div class="seg mt14"><button class="${a.view === 'ex' ? 'on' : ''}" data-act="view" data-v="ex">Por ejercicio</button><button class="${a.view === 'focus' ? 'on' : ''}" data-act="view" data-v="focus">Enfoque</button></div>
       <div class="between" style="margin:16px 0 4px;font-size:13px;color:var(--mu)"><span data-prog-n>${p.done} de ${p.total} series</span><span data-prog-v>Vol. ${fmt(fv(p.vol))} ${u}</span></div>
       <div class="bar"><div style="width:${pct}%"></div></div>
+      <button class="lista-btn" data-act="lista">☰ Ejercicios <span class="mu">· cambiar orden o añadir</span></button>
       ${body}`;
   }
   function vFocus(a) {
@@ -690,6 +692,8 @@
         <span class="nm">${esc(x.nombre)}<br><span class="mu" style="font-size:11px">${esc(x.grupo)}${x.rpe ? ' · RPE ' + esc(x.rpe) : ''}</span></span>
         <input class="num" value="${x.series}" inputmode="numeric" data-in="exSeries" data-i="${i}" aria-label="Series">
         <input class="num" value="${esc(x.reps)}" data-in="exReps" data-i="${i}" aria-label="Reps">
+        <button class="x mv" data-act="sheetMover" data-i="${i}" data-d="-1"${i === 0 ? ' disabled' : ''} aria-label="Subir">↑</button>
+        <button class="x mv" data-act="sheetMover" data-i="${i}" data-d="1"${i === e.ejercicios.length - 1 ? ' disabled' : ''} aria-label="Bajar">↓</button>
         <button class="x" data-act="sheetRmEx" data-i="${i}" aria-label="Quitar">×</button>
       </div>`).join('');
     const known = nombresConocidos().map(k => `<option value="${esc(k.nombre)}">`).join('');
@@ -703,7 +707,7 @@
         </div>
         <div class="field-l">ENFOQUE</div>
         <input class="input" style="margin:6px 0 14px;font-weight:500;font-size:15px" value="${esc(e.enfoque)}" placeholder="Pecho, hombro, tríceps" data-in="editEnfoque">
-        <div class="between"><div class="field-l">EJERCICIOS</div><div class="mu" style="font-size:11px;display:grid;grid-template-columns:44px 72px 36px;gap:6px;text-align:center;padding-right:4px"><span>SERIES</span><span>REPS</span><span></span></div></div>
+        <div class="between"><div class="field-l">EJERCICIOS</div><div class="mu" style="font-size:11px;display:grid;grid-template-columns:40px 60px 26px 26px 30px;gap:4px;text-align:center;padding-right:4px"><span>SERIES</span><span>REPS</span><span></span><span></span><span></span></div></div>
         <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 10px">${rows || '<div class="mu" style="font-size:13px;padding:8px 0">Sin ejercicios todavía.</div>'}</div>
         <div class="row" style="gap:6px">
           <input class="input" list="ejs" placeholder="Añadir ejercicio…" style="flex:1;min-width:0;font-weight:500;font-size:15px;height:44px" value="${esc(e.nuevo)}" data-in="nuevoEj">
@@ -934,6 +938,7 @@
     if (ui.swap != null && a && s === 'workout') h += vSheetSwap();
     if (ui.checkin) h += vSheetCheckin();
     if (ui.picker && a && s === 'workout') h += vSheetPeso();
+    if (ui.lista && a && s === 'workout') h += vSheetLista();
     if (ui.ajustes) h += vSheetAjustes();
     if (pendiente) {
       h += `<div class="sheet-bg" style="z-index:30" data-act="confNo"></div>
@@ -1026,6 +1031,33 @@
     if (estado === 'rojo') toast('Hoy vas con −5% de carga y RPE más bajo');
     else if (estado === 'amarillo') toast('Hoy apuntamos medio punto de RPE más bajo');
   }
+  function vSheetLista() {
+    const a = D.activo, L = ui.lista, n = a.ejercicios.length;
+    const filas = a.ejercicios.map((e, i) => {
+      const hechas = e.sets.filter(x => x.done).length, todo = hechas === e.sets.length;
+      return `<div class="lrow${i === a.exi ? ' cur' : ''}">
+        <button class="lname" data-act="listaIr" data-i="${i}"><span class="c lnum">${todo ? '✓' : i + 1}</span><span class="lt"><b>${esc(e.nombre)}</b><span class="mu">${hechas}/${e.sets.length} series${i === a.exi ? ' · ahora' : ''}</span></span></button>
+        <button class="lbtn" data-act="listaMover" data-i="${i}" data-d="-1"${i === 0 ? ' disabled' : ''} aria-label="Subir">↑</button>
+        <button class="lbtn" data-act="listaMover" data-i="${i}" data-d="1"${i === n - 1 ? ' disabled' : ''} aria-label="Bajar">↓</button>
+        ${hechas || n === 1 ? '<span></span>' : `<button class="lbtn x" data-act="listaQuitar" data-i="${i}" aria-label="Quitar">×</button>`}
+      </div>`;
+    }).join('');
+    const known = nombresConocidos().map(k => `<option value="${esc(k.nombre)}">`).join('');
+    return `<div class="sheet-bg" data-act="listaCerrar"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="c" style="font-size:28px">EJERCICIOS DE HOY</div>
+        <div class="mu" style="font-size:13px;margin:2px 0 12px">Toca uno para ir a él. Con las flechas cambias el orden.</div>
+        <div style="display:flex;flex-direction:column;gap:6px">${filas}</div>
+        <div class="field-l mt16">AÑADIR UN EJERCICIO</div>
+        <input class="input" list="ejs-lista" placeholder="Nombre del ejercicio…" style="margin-top:6px;font-weight:500;font-size:15px;height:46px" value="${esc(L.nuevo)}" data-in="listaNuevo">
+        <datalist id="ejs-lista">${known}</datalist>
+        <div class="row mt8" style="gap:6px">
+          <select class="input" style="flex:1;height:44px" data-in="listaGrupo" aria-label="Grupo">${GRUPOS.map(g => `<option${g === L.grupo ? ' selected' : ''}>${g}</option>`).join('')}</select>
+          <select class="input" style="width:118px;height:44px" data-in="listaSeries" aria-label="Series">${[1, 2, 3, 4, 5, 6].map(v => `<option value="${v}"${v === L.series ? ' selected' : ''}>${v} series</option>`).join('')}</select>
+        </div>
+        <button class="btn btn-w btn-ac mt12" data-act="listaAnadir">Añadir y hacerlo ahora</button>
+      </div>`;
+  }
   function vSheetPeso() {
     const { ei, si } = ui.picker, e = D.activo.ejercicios[ei], x = e.sets[si], u = U();
     const escala = Coach.escala(e.equipo, u), actual = x.kg > 0 ? fv(x.kg) : null, previo = x.pk != null ? fv(x.pk) : null;
@@ -1070,6 +1102,35 @@
   function responder(v) { const p = pendiente; pendiente = null; renderOverlay(); if (p) p.res(v); }
   const A = {
     confSi: () => responder(true),
+    lista: () => { ui.lista = { nuevo: '', series: 3, grupo: 'Pecho' }; renderOverlay(); },
+    listaCerrar: () => { ui.lista = null; renderOverlay(); },
+    listaIr: d => { D.activo.exi = +d.i; D.activo.restEnd = 0; lastRest = 0; ui.lista = null; save(); render(); },
+    listaMover: d => {
+      const a = D.activo, i = +d.i, j = i + +d.d;
+      if (j < 0 || j >= a.ejercicios.length) return;
+      const actual = a.ejercicios[a.exi];
+      [a.ejercicios[i], a.ejercicios[j]] = [a.ejercicios[j], a.ejercicios[i]];
+      a.exi = a.ejercicios.indexOf(actual);
+      save(); render();
+    },
+    listaQuitar: async d => {
+      const a = D.activo, e = a.ejercicios[+d.i];
+      if (!(await confirmar('¿Quitar ' + e.nombre + ' de la sesión de hoy?', 'Quitar', true))) return;
+      const actual = a.ejercicios[a.exi];
+      a.ejercicios.splice(+d.i, 1);
+      a.exi = Math.max(0, actual === e ? Math.min(+d.i, a.ejercicios.length - 1) : a.ejercicios.indexOf(actual));
+      save(); render();
+    },
+    listaAnadir: () => {
+      const a = D.activo, L = ui.lista, nombre = L.nuevo.trim();
+      if (!nombre) { toast('Escribe o elige un ejercicio'); return; }
+      const k = nombresConocidos().find(x => norm(x.nombre) === norm(nombre));
+      const def = normEj(k && k.reps ? { ...k, series: L.series } : { nombre: k ? k.nombre : nombre, grupo: k ? k.grupo : L.grupo, series: L.series, reps: '8-10' });
+      const pos = a.exi + 1;
+      a.ejercicios.splice(pos, 0, nuevoEjActivo(def, a.ejercicios.length, def.series, a.estado, a.descarga));
+      a.exi = pos; a.restEnd = 0; lastRest = 0; ui.lista = null;
+      save(); render(); toast('Añadido: ' + def.nombre);
+    },
     peso: d => {
       ui.picker = { ei: +d.ei, si: +d.si }; renderOverlay();
       const g = $('#pkgrid'), c = $('#pk-centro');
@@ -1152,6 +1213,11 @@
     editRut: d => { const r = D.rutinas[+d.i]; ui.edit = { idx: +d.i, nombre: r.nombre, dia: r.dia, enfoque: r.enfoque || '', ejercicios: r.ejercicios.map(e => ({ ...e })), nuevo: '', nuevoGrupo: 'Pecho' }; renderOverlay(); },
     closeSheet: () => { ui.edit = null; renderOverlay(); },
     sheetRmEx: d => { ui.edit.ejercicios.splice(+d.i, 1); renderOverlay(); },
+    sheetMover: d => {
+      const L = ui.edit.ejercicios, i = +d.i, j = i + +d.d;
+      if (j < 0 || j >= L.length) return;
+      [L[i], L[j]] = [L[j], L[i]]; renderOverlay();
+    },
     sheetAddEx: () => {
       const e = ui.edit, n = e.nuevo.trim();
       if (!n) { toast('Escribe el nombre del ejercicio'); return; }
@@ -1207,6 +1273,13 @@
     exSeries: (el, d) => { ui.edit.ejercicios[+d.i].series = Math.max(1, parseInt(el.value) || 1); },
     exReps: (el, d) => { ui.edit.ejercicios[+d.i].reps = el.value.trim() || '8'; },
     nuevoEj: el => { ui.edit.nuevo = el.value; },
+    listaNuevo: el => {
+      ui.lista.nuevo = el.value;
+      const k = nombresConocidos().find(x => norm(x.nombre) === norm(el.value));
+      if (k && k.grupo && GRUPOS.includes(k.grupo)) { ui.lista.grupo = k.grupo; const sel = $('[data-in=listaGrupo]'); if (sel) sel.value = k.grupo; }
+    },
+    listaGrupo: el => { ui.lista.grupo = el.value; },
+    listaSeries: el => { ui.lista.series = +el.value; },
     nuevoGrupo: el => { ui.edit.nuevoGrupo = el.value; },
     cmp: el => {
       ui.cmp = +el.value;

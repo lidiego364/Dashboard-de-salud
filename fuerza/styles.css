@@ -130,7 +130,7 @@ select.input { appearance: none; -webkit-appearance: none; font-weight: 500; fon
 .sheet-bg { position: absolute; inset: 0; background: rgba(3,5,10,.7); z-index: 20; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card); border-radius: 28px 28px 0 0; padding: 20px 20px calc(20px + var(--bot)); z-index: 21; max-height: 88%; overflow-y: auto; }
 .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
-.ex-edit { display: grid; grid-template-columns: minmax(0,1fr) 44px 72px 36px; gap: 6px; align-items: center; background: var(--app); border-radius: 12px; padding: 4px 4px 4px 12px; }
+.ex-edit { display: grid; grid-template-columns: minmax(0,1fr) 40px 60px 26px 26px 30px; gap: 4px; align-items: center; background: var(--app); border-radius: 12px; padding: 4px 4px 4px 12px; }
 .ex-edit .num { background: var(--card); height: 36px; font-size: 18px; }
 .ex-edit .x { width: 36px; height: 36px; background: none; border: 0; color: var(--b2); font-size: 20px; padding: 0; }
 .ex-edit .nm { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -216,3 +216,17 @@ button.num.pick { border: 0; }
 .pkb { height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--app); color: var(--tx); font: italic 800 22px 'Barlow Condensed'; padding: 0; }
 .pkb.prev { border-color: var(--b1); color: var(--b1); }
 .pkb.on { background: var(--ac); border-color: var(--ac); color: var(--app); }
+
+/* Lista de ejercicios de la sesión y reordenar */
+.ex-edit .x.mv { font-size: 16px; color: var(--b1); width: 26px; }
+.ex-edit .x:disabled, .lbtn:disabled { opacity: .25; }
+.lista-btn { display: block; width: 100%; margin-top: 10px; background: none; border: 1px solid var(--bd); border-radius: 12px; color: var(--tx); font: 700 13px 'DM Sans'; padding: 9px 12px; text-align: left; }
+.lrow { display: grid; grid-template-columns: minmax(0,1fr) 38px 38px 38px; gap: 4px; align-items: center; background: var(--app); border: 1px solid transparent; border-radius: 14px; padding: 4px; }
+.lrow.cur { border-color: var(--ac); }
+.lname { display: flex; align-items: center; gap: 10px; background: none; border: 0; color: var(--tx); text-align: left; padding: 4px 6px; min-width: 0; }
+.lnum { font-size: 20px; color: var(--mu); width: 22px; flex: none; text-align: center; }
+.lt { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.lt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt .mu { font-size: 12px; }
+.lbtn { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--tx); font: 700 16px 'DM Sans'; padding: 0; }
+.lbtn.x { color: var(--b2); font-size: 20px; }
