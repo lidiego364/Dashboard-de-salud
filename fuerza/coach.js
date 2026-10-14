@@ -49,7 +49,7 @@
     if (unidad === 'lb') {
       const lb = kg * LB;
       let p;
-      if (esMancuerna(e)) p = 2;
+      if (esMancuerna(e)) p = lb < 20 ? 1 : 2;
       else if (/barra z/.test(e)) p = 2.5;
       else if (/barra|smith/.test(e)) p = 5;
       else p = lb >= 20 ? 2.5 : 1;
@@ -57,6 +57,18 @@
     }
     if (esMancuerna(e)) return kg >= 10 ? 2 : 1;
     return kg >= 20 ? 2.5 : 1;
+  }
+  // Pesos disponibles del equipo en la unidad del usuario, como la rueda de pesos de Garmin:
+  // barra con pesos altos desde la barra vacía, mancuernas con pesos bajos y saltos pequeños.
+  // `inicio` es dónde se abre la lista si el ejercicio aún no tiene peso.
+  function escala(equipo, unidad) {
+    const e = sinTildes(equipo), lb = unidad === 'lb';
+    const rango = (a, b, p) => { const out = []; for (let v = a; v <= b + 1e-9; v += p) out.push(Math.round(v * 100) / 100); return out; };
+    if (esMancuerna(e)) return lb ? { valores: rango(1, 20, 1).concat(rango(22, 150, 2)), inicio: 20 } : { valores: rango(1, 10, 1).concat(rango(12, 70, 2)), inicio: 10 };
+    if (/barra z/.test(e)) return lb ? { valores: rango(10, 150, 2.5), inicio: 30 } : { valores: rango(5, 70, 1.25), inicio: 15 };
+    if (/barra|smith/.test(e)) return lb ? { valores: rango(0, 405, 2.5), inicio: 45 } : { valores: rango(0, 180, 1.25), inicio: 20 };
+    if (/corporal|lastr|asist/.test(e)) return lb ? { valores: rango(0, 100, 5), inicio: 0 } : { valores: rango(0, 50, 2.5), inicio: 0 };
+    return lb ? { valores: rango(0, 300, 2.5), inicio: 30 } : { valores: rango(0, 150, 1.25), inicio: 15 };
   }
   const limpio = kg => Math.round(kg * 10000) / 10000;
   function redondear(kg, equipo, unidad) {
@@ -193,7 +205,7 @@
     return null;
   }
 
-  const Coach = { rangoReps, rangoRpe, objetivoRpe, redondear, paso: pasoDe, estadoDia, planEjercicio, ajusteSerie, esInferior };
+  const Coach = { rangoReps, rangoRpe, objetivoRpe, redondear, paso: pasoDe, escala, estadoDia, planEjercicio, ajusteSerie, esInferior };
   if (typeof module !== 'undefined' && module.exports) module.exports = Coach;
   else root.Coach = Coach;
 })(typeof window !== 'undefined' ? window : globalThis);

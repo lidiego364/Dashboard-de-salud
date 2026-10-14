@@ -206,3 +206,13 @@ select.input { appearance: none; -webkit-appearance: none; font-weight: 500; fon
 .prox { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--bd); }
 .prox:first-child { border-top: 0; }
 .fold { display: flex; justify-content: space-between; align-items: center; width: 100%; background: none; border: 0; padding: 0; color: inherit; font: 500 13px 'DM Sans'; text-align: left; }
+
+/* Lista de pesos */
+.pick { cursor: pointer; }
+button.pad-v { display: block; width: 100%; background: none; border: 0; color: var(--tx); padding: 0; }
+button.pad-v::after { content: 'toca para elegir'; display: block; font: 500 11px 'DM Sans'; color: var(--mu); margin-top: 2px; }
+button.num.pick { border: 0; }
+.pkgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 52vh; overflow-y: auto; padding: 2px; }
+.pkb { height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--app); color: var(--tx); font: italic 800 22px 'Barlow Condensed'; padding: 0; }
+.pkb.prev { border-color: var(--b1); color: var(--b1); }
+.pkb.on { background: var(--ac); border-color: var(--ac); color: var(--app); }

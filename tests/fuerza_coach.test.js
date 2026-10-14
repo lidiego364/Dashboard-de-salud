@@ -156,3 +156,14 @@ test('importador: detecta el CSV, traduce nombres y corrige unidades mal marcada
 test('importador: un CSV cualquiera no se toma por StrengthLab', () => {
   assert.equal(Importar.esStrengthLab(Importar.parseCSV('a,b\n1,2')), false);
 });
+
+test('escala de pesos según el equipo, en libras', () => {
+  const barra = Coach.escala('Barra', 'lb'), manc = Coach.escala('Mancuernas', 'lb'), polea = Coach.escala('Polea', 'lb');
+  assert.equal(barra.inicio, 45);
+  assert.ok(barra.valores.includes(110) && barra.valores.includes(42.5) && barra.valores.includes(405));
+  assert.ok(manc.valores.includes(11) && manc.valores.includes(12) && manc.valores.includes(42) && manc.valores.includes(88));
+  assert.ok(manc.valores[manc.valores.length - 1] < barra.valores[barra.valores.length - 1]);
+  assert.ok(polea.valores.includes(112.5) && polea.valores.includes(127.5));
+  assert.equal(enLb(Coach.paso(11 / LB, 'Mancuernas', 'lb')), 1);
+  assert.equal(enLb(Coach.paso(42 / LB, 'Mancuernas', 'lb')), 2);
+});
