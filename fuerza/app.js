@@ -246,6 +246,11 @@
       })
     };
   }
+  // Las series siguientes toman el peso de la que acabas de hacer (salvo las que cambiaste a mano).
+  function arrastrar(ei, si) {
+    const e = D.activo.ejercicios[ei], x = e.sets[si];
+    e.sets.forEach((y, j) => { if (j > si && !y.done && !y.manual) y.kg = x.kg; });
+  }
   // Ajuste en vivo de las series que quedan según el RPE de la que acaba de terminar.
   function ajustar(ei, si) {
     const e = D.activo.ejercicios[ei], x = e.sets[si];
@@ -380,7 +385,7 @@
   const ui = {
     screen: D.activo ? (D.activo.fin ? 'summary' : 'workout') : 'hoy',
     ptab: 'peso', ang: 0, cmp: 50, antes: {}, lift: null,
-    edit: null, swap: null, checkin: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
+    edit: null, swap: null, checkin: null, picker: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
   };
   const scrollPos = {};
   let lastScreen = null, lastRest = restLeft(D.activo);
@@ -500,7 +505,7 @@
         <div class="setgrid setrow${x.done ? ' done' : ''}">
           <span class="c mu" style="font-size:20px">${si + 1}</span>
           <span class="mu" style="font-size:12px;line-height:1.2">${x.pk != null ? fv(x.pk) + '×' + x.pr + (x.prpe ? '<br>@' + fRpe(x.prpe) : '') : '—'}</span>
-          <input class="num" value="${fv(x.kg)}" inputmode="decimal" data-in="kg" data-ei="${ei}" data-si="${si}" aria-label="Peso serie ${si + 1}">
+          <button class="num pick" data-act="peso" data-ei="${ei}" data-si="${si}" aria-label="Peso serie ${si + 1}">${fv(x.kg)}</button>
           <input class="num" value="${x.reps}" inputmode="numeric" data-in="reps" data-ei="${ei}" data-si="${si}" aria-label="Reps serie ${si + 1}">
           <input class="num${x.rpe && e.cap && x.rpe > e.cap ? ' over' : ''}" value="${x.rpe ? fRpe(x.rpe) : ''}" placeholder="${x.trpe != null ? fRpe(x.trpe) : '–'}" inputmode="decimal" data-in="rpe" data-ei="${ei}" data-si="${si}" aria-label="RPE serie ${si + 1}">
           <button class="check${x.done ? ' on' : ''}" data-act="toggle" data-ei="${ei}" data-si="${si}" aria-label="Completar serie ${si + 1}">${x.done ? '✓' : ''}</button>
@@ -574,7 +579,7 @@
         <div class="mu" style="font-size:13px;margin-top:2px">Anterior · ${cs.pk != null ? fv(cs.pk) + ' × ' + cs.pr + (cs.prpe ? ' @ RPE ' + fRpe(cs.prpe) : '') : '—'}</div></div>
         ${vCoach(ce)}
         <div class="grid2 mt14" style="gap:12px">
-          <div class="pad"><div class="cap">${u.toUpperCase()}</div><div class="c pad-v">${fv(cs.kg)}</div><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="kgM" aria-label="Menos peso">−</button><button class="step" data-act="kgP" aria-label="Más peso">+</button></div></div>
+          <div class="pad"><div class="cap">${u.toUpperCase()}</div><button class="c pad-v pick" data-act="peso" data-ei="${a.exi}" data-si="${si}" aria-label="Elegir peso">${fv(cs.kg)}</button><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="kgM" aria-label="Menos peso">−</button><button class="step" data-act="kgP" aria-label="Más peso">+</button></div></div>
           <div class="pad"><div class="cap">REPS</div><div class="c pad-v">${cs.reps}</div><div class="row" style="gap:8px;justify-content:center"><button class="step" data-act="repM" aria-label="Menos reps">−</button><button class="step" data-act="repP" aria-label="Más reps">+</button></div></div>
         </div>
         <div class="between mt14"><div class="cap">RPE</div><div class="mu" style="font-size:12px">${cs.trpe != null ? 'Objetivo <b style="color:var(--tx)">' + fRpe(cs.trpe) + '</b>' + (ce.cap ? ' · techo ' + fRpe(ce.cap) : '') : ce.rpe ? 'Objetivo ' + esc(ce.rpe) : 'Opcional'}</div></div>
@@ -928,6 +933,7 @@
     if (ui.edit) h += vSheetRutina();
     if (ui.swap != null && a && s === 'workout') h += vSheetSwap();
     if (ui.checkin) h += vSheetCheckin();
+    if (ui.picker && a && s === 'workout') h += vSheetPeso();
     if (ui.ajustes) h += vSheetAjustes();
     if (pendiente) {
       h += `<div class="sheet-bg" style="z-index:30" data-act="confNo"></div>
@@ -1020,6 +1026,21 @@
     if (estado === 'rojo') toast('Hoy vas con −5% de carga y RPE más bajo');
     else if (estado === 'amarillo') toast('Hoy apuntamos medio punto de RPE más bajo');
   }
+  function vSheetPeso() {
+    const { ei, si } = ui.picker, e = D.activo.ejercicios[ei], x = e.sets[si], u = U();
+    const escala = Coach.escala(e.equipo, u), actual = x.kg > 0 ? fv(x.kg) : null, previo = x.pk != null ? fv(x.pk) : null;
+    let vals = escala.valores.slice();
+    [actual, previo].forEach(v => { if (v != null && !vals.some(w => Math.abs(w - v) < 0.01)) vals.push(v); });
+    vals.sort((p, q) => p - q);
+    const centro = actual != null ? actual : previo != null ? previo : escala.inicio;
+    const botones = vals.map(v => `<button class="pkb${actual != null && Math.abs(v - actual) < 0.01 ? ' on' : ''}${previo != null && Math.abs(v - previo) < 0.01 ? ' prev' : ''}"${Math.abs(v - centro) < 0.01 ? ' id="pk-centro"' : ''} data-act="pesoVal" data-v="${v}">${v}</button>`).join('');
+    return `<div class="sheet-bg" data-act="pesoCerrar"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="between"><div class="c" style="font-size:26px">PESO · SERIE ${si + 1}</div><div class="mu" style="font-size:13px">${u}</div></div>
+        <div class="mu" style="font-size:13px;margin:2px 0 12px">${esc(e.nombre)} · ${esc(e.equipo || 'Equipo')}${previo != null ? ' · anterior <b style="color:var(--b1)">' + previo + ' ' + u + '</b>' : ''}</div>
+        <div class="pkgrid" id="pkgrid">${botones}</div>
+      </div>`;
+  }
   function vSheetCheckin() {
     const c = ui.checkin;
     const fila = (k, titulo, ops) => `<div class="field-l mt12">${titulo}</div><div class="seg" style="margin-top:6px">${ops.map(([v, l]) => `<button class="${c[k] === v ? 'on' : ''}" data-act="ci" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
@@ -1049,6 +1070,13 @@
   function responder(v) { const p = pendiente; pendiente = null; renderOverlay(); if (p) p.res(v); }
   const A = {
     confSi: () => responder(true),
+    peso: d => {
+      ui.picker = { ei: +d.ei, si: +d.si }; renderOverlay();
+      const g = $('#pkgrid'), c = $('#pk-centro');
+      if (g && c) g.scrollTop = c.offsetTop - g.offsetTop - g.clientHeight / 2 + c.clientHeight / 2;
+    },
+    pesoVal: d => { const { ei, si } = ui.picker; setSet(ei, si, { kg: toKg(d.v), manual: true }); ui.picker = null; render(); },
+    pesoCerrar: () => { ui.picker = null; renderOverlay(); },
     calent: () => { ui.calent = !ui.calent; render(); },
     ci: d => { ui.checkin[d.k] = ui.checkin[d.k] === d.v ? null : d.v; renderOverlay(); },
     ciCerrar: () => { ui.checkin = null; renderOverlay(); },
@@ -1080,7 +1108,7 @@
     toggle: d => {
       const a = D.activo, e = a.ejercicios[+d.ei], x = e.sets[+d.si];
       x.done = !x.done;
-      if (x.done) { iniciarDescanso(e.descanso, x.rpe); const aj = ajustar(+d.ei, +d.si); if (aj) toast(aj.txt); else avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
+      if (x.done) { iniciarDescanso(e.descanso, x.rpe); arrastrar(+d.ei, +d.si); const aj = ajustar(+d.ei, +d.si); if (aj) toast(aj.txt); else avisoRpe(e, x.rpe); } else { a.restEnd = 0; lastRest = 0; }
       save(); render();
     },
     addSet: d => { const e = D.activo.ejercicios[+d.ei], l = e.sets[e.sets.length - 1]; e.sets.push({ kg: l.kg, reps: l.reps, rpe: null, trpe: l.trpe, treps: l.treps, pk: null, pr: null, done: false }); save(); render(); },
@@ -1090,7 +1118,7 @@
     repM: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: Math.max(0, cs.reps - 1) }); render(); },
     repP: () => { const { si, cs } = focusSet(); setSet(D.activo.exi, si, { reps: cs.reps + 1 }); render(); },
     rpe: d => { const { si, cs } = focusSet(), v = +d.v; setSet(D.activo.exi, si, { rpe: cs.rpe === v ? null : v }); render(); },
-    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); const aj = ajustar(D.activo.exi, si); if (aj) toast(aj.txt); else avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso, cs.rpe); save(); render(); },
+    complete: () => { const { ce, si, cs } = focusSet(); setSet(D.activo.exi, si, { done: true }); arrastrar(D.activo.exi, si); const aj = ajustar(D.activo.exi, si); if (aj) toast(aj.txt); else avisoRpe(ce, cs.rpe); iniciarDescanso(ce.descanso, cs.rpe); save(); render(); },
     restAdd: () => { const a = D.activo; if (restLeft(a) > 0) { a.restEnd += 15000; a.restTotal += 15; save(); tick(); } },
     restSkip: () => { D.activo.restEnd = 0; lastRest = 0; save(); render(); },
     restSub: () => { const a = D.activo; if (restLeft(a) > 30) { a.restEnd -= 30000; save(); tick(); } else A.restSkip(); },
@@ -1164,7 +1192,6 @@
   const leerRpe = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) || n <= 0 ? null : clamp(Math.round(n * 2) / 2, 1, 10); };
 
   const INPUTS = {
-    kg: (el, d) => { setSet(+d.ei, +d.si, { kg: toKg(el.value), manual: true }); updateProgress(); },
     reps: (el, d) => { setSet(+d.ei, +d.si, { reps: parseInt(el.value) || 0 }); updateProgress(); },
     rpe: (el, d) => {
       const v = leerRpe(el.value), e = D.activo.ejercicios[+d.ei];
@@ -1217,7 +1244,7 @@
       if (e.sets[+el.dataset.si].rpe) el.value = fRpe(e.sets[+el.dataset.si].rpe);
     }
   });
-  document.addEventListener('focusin', ev => { if (ev.target.classList && ev.target.classList.contains('num')) ev.target.select(); });
+  document.addEventListener('focusin', ev => { if (ev.target.classList && ev.target.classList.contains('num') && typeof ev.target.select === 'function') ev.target.select(); });
   document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.matches('input')) ev.target.blur(); });
 
   $('#fileFoto').addEventListener('change', async ev => {
