@@ -42,8 +42,8 @@
   function defaults() {
     return {
       version: 1, programaVersion: 0,
-      ajustes: { nombre: '', unidad: 'kg', metaPeso: null, objetivoSemanal: 3, descanso: 90, onboarded: false },
-      rutinas: [], sesiones: [], peso: [], activo: null
+      ajustes: { nombre: '', unidad: 'kg', altura: null, sexo: null, unidadMedida: 'cm', metaPeso: null, objetivoSemanal: 3, descanso: 90, onboarded: false },
+      rutinas: [], sesiones: [], peso: [], medidas: [], analisis: [], activo: null
     };
   }
   function load() {
@@ -386,7 +386,7 @@
   const ui = {
     screen: D.activo ? (D.activo.fin ? 'summary' : 'workout') : 'hoy',
     ptab: 'peso', ang: 0, cmp: 50, antes: {}, lift: null,
-    edit: null, swap: null, checkin: null, picker: null, lista: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
+    edit: null, swap: null, checkin: null, picker: null, lista: null, med: {}, medAyuda: false, analizando: false, verAn: null, calent: false, ajustes: !D.ajustes.onboarded, bw: '', nuevoPeso: '', fotos: []
   };
   const scrollPos = {};
   let lastScreen = null, lastRest = restLeft(D.activo);
@@ -722,8 +722,8 @@
 
   // ---------- Pantalla: Progreso ----------
   function vProgreso() {
-    const tabs = [['peso', 'Peso'], ['fotos', 'Fotos'], ['fuerza', 'Fuerza']].map(([k, l]) => `<button class="${ui.ptab === k ? 'on' : ''}" data-act="ptab" data-k="${k}">${l}</button>`).join('');
-    const body = ui.ptab === 'peso' ? vPeso() : ui.ptab === 'fotos' ? vFotos() : vFuerza();
+    const tabs = [['peso', 'Peso'], ['medidas', 'Medidas'], ['fotos', 'Fotos'], ['fuerza', 'Fuerza']].map(([k, l]) => `<button class="${ui.ptab === k ? 'on' : ''}" data-act="ptab" data-k="${k}">${l}</button>`).join('');
+    const body = ui.ptab === 'peso' ? vPeso() : ui.ptab === 'medidas' ? vMedidas() : ui.ptab === 'fotos' ? vFotos() : vFuerza();
     return `<div class="h1">Progreso</div><div class="seg lg mt12">${tabs}</div>${body}`;
   }
   function regresion(pts) {
@@ -786,6 +786,127 @@
       </div>
       ${metaCard}${form}`;
   }
+  // ---------- Medidas corporales ----------
+  const r1 = v => Math.round(v * 10) / 10;
+  const UM = () => D.ajustes.unidadMedida === 'in' ? 'in' : 'cm';
+  const fmed = cm => UM() === 'in' ? r1(cm / 2.54) : r1(cm);
+  const aCm = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) || n <= 0 ? null : UM() === 'in' ? n * 2.54 : n; };
+  function medidasOrdenadas() { return D.medidas.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)); }
+  function grasaDe(m) { const a = D.ajustes; return m ? Cuerpo.grasaNavy({ sexo: a.sexo, altura: a.altura, cintura: m.cintura, cuello: m.cuello, cadera: m.cadera }) : null; }
+  function vMedidas() {
+    const a = D.ajustes, M = medidasOrdenadas(), last = M[M.length - 1], first = M[0], um = UM();
+    const pesoKg = D.peso.length ? D.peso[D.peso.length - 1].kg : null;
+    let comp;
+    if (!(a.altura > 0) || !a.sexo) {
+      comp = `<div class="card mt14"><div class="lbl">COMPOSICIÓN ESTIMADA</div>
+        <div class="mu" style="font-size:13px;margin:6px 0 10px">Para estimar tu % de grasa con la cinta métrica necesito tu altura y tu sexo.</div>
+        <div class="grid2"><div><div class="field-l">ALTURA (cm)</div><input class="input" style="margin-top:6px" value="${a.altura || ''}" inputmode="decimal" placeholder="178" data-in="aj-altura"></div>
+        <div><div class="field-l">SEXO</div><div class="seg" style="margin-top:6px;height:48px;align-items:center"><button class="${a.sexo === 'h' ? 'on' : ''}" data-act="setSexo" data-v="h">Hombre</button><button class="${a.sexo === 'm' ? 'on' : ''}" data-act="setSexo" data-v="m">Mujer</button></div></div></div></div>`;
+    } else {
+      const g = grasaDe(last), g0 = grasaDe(first);
+      if (g == null) {
+        comp = `<div class="card mt14 empty">Registra cintura y cuello${a.sexo === 'm' ? ' y cadera' : ''} para estimar tu % de grasa.</div>`;
+      } else {
+        const dG = g0 != null && first !== last ? r1(g - g0) : null;
+        const magra = pesoKg ? pesoKg * (1 - g / 100) : null, grasaKg = pesoKg ? pesoKg - magra : null;
+        const ratio = last.cintura / a.altura;
+        comp = `<div class="hero-strength mt14">
+          <div class="cap" style="color:#fff;opacity:.85">GRASA ESTIMADA · CINTA MÉTRICA</div>
+          <div class="c" style="font-size:72px;line-height:.95">${g}<span style="font-size:28px"> %</span></div>
+          <div style="font-size:13px;opacity:.9">Fórmula de la Marina de EE. UU. · ${fechaCorta(parseDia(last.fecha))}${dG != null ? ` · ${dG <= 0 ? '▼' : '▲'} ${Math.abs(dG)} desde ${fechaCorta(parseDia(first.fecha))}` : ''}</div>
+        </div>
+        <div class="grid3 mt10">
+          <div class="stat"><div class="c" style="font-size:28px;color:var(--b1)">${magra ? fv(magra) : '—'}</div><div class="mu" style="font-size:12px">masa magra ${U()}</div></div>
+          <div class="stat"><div class="c" style="font-size:28px;color:var(--si)">${grasaKg ? fv(grasaKg) : '—'}</div><div class="mu" style="font-size:12px">grasa ${U()}</div></div>
+          <div class="stat"><div class="c" style="font-size:28px;color:${ratio < 0.5 ? 'var(--b1)' : 'var(--warn)'}">${ratio.toFixed(2)}</div><div class="mu" style="font-size:12px">cintura/altura</div></div>
+        </div>
+        ${pesoKg ? '' : '<div class="mu" style="font-size:12px;margin-top:6px">Registra tu peso en la pestaña Peso para ver masa magra y grasa en kilos.</div>'}`;
+      }
+    }
+    const campos = Cuerpo.MEDIDAS.map(([k, l]) => `<div><div class="field-l">${l.toUpperCase()}</div><input class="input" style="margin-top:6px;font-size:18px" inputmode="decimal" placeholder="${last && last[k] ? fmed(last[k]) : um}" value="${esc(ui.med[k] || '')}" data-in="med" data-k="${k}" aria-label="${l} en ${um}"></div>`).join('');
+    const ayuda = ui.medAyuda ? `<div class="notes" style="margin-top:10px">${Cuerpo.MEDIDAS.map(([, l, t]) => `<b>${l}:</b> ${t}`).join('<br>')}<br>Mide siempre el mismo día de la semana, en ayunas y con la cinta horizontal sin apretar.</div>` : '';
+    const form = `<div class="card mt10">
+      <div class="between"><div class="lbl">REGISTRAR MEDIDAS · HOY</div><div class="seg" style="width:110px"><button class="${um === 'cm' ? 'on' : ''}" data-act="medUnidad" data-v="cm">cm</button><button class="${um === 'in' ? 'on' : ''}" data-act="medUnidad" data-v="in">in</button></div></div>
+      <div class="grid2 mt10">${campos}</div>${ayuda}
+      <div class="row mt12" style="gap:8px"><button class="btn btn-ghost" style="flex:1;height:48px;font-size:14px" data-act="medAyuda">${ui.medAyuda ? 'Ocultar guía' : 'Cómo medir'}</button><button class="btn btn-ac" style="flex:2;height:48px" data-act="guardarMedidas">Guardar medidas</button></div>
+    </div>`;
+    let hist = '';
+    if (last) {
+      const filas = Cuerpo.MEDIDAS.filter(([k]) => last[k]).map(([k, l]) => {
+        const d = first !== last && first[k] ? last[k] - first[k] : null;
+        const bueno = d == null ? '' : (k === 'cintura' || k === 'cadera') ? (d <= 0 ? 'var(--b1)' : 'var(--warn)') : (k === 'cuello' ? 'var(--mu)' : d >= 0 ? 'var(--b1)' : 'var(--warn)');
+        return `<div class="between" style="padding:8px 0;border-top:1px solid var(--bd)"><span>${l}</span><span><b class="c" style="font-size:20px">${fmed(last[k])}</b> <span class="mu" style="font-size:12px">${um}</span>${d != null ? ` <span style="font-size:13px;color:${bueno};margin-left:6px">${d <= 0 ? '▼' : '▲'} ${fmed(Math.abs(d))}</span>` : ''}</span></div>`;
+      }).join('');
+      hist = `<div class="card mt10"><div class="between"><div class="lbl">ÚLTIMAS MEDIDAS · ${fechaCorta(parseDia(last.fecha))}</div><div class="mu" style="font-size:12px">${M.length} registro${M.length === 1 ? '' : 's'}${first !== last ? ' · cambio desde ' + fechaCorta(parseDia(first.fecha)) : ''}</div></div><div class="mt8">${filas}</div></div>`;
+    }
+    return comp + form + hist;
+  }
+
+  // ---------- Análisis de fotos con IA ----------
+  const CLAVE_IA = 'fuerza.claveIA';
+  const leerClave = () => { try { return localStorage.getItem(CLAVE_IA) || ''; } catch (e) { return ''; } };
+  const guardarClave = v => { try { if (v) localStorage.setItem(CLAVE_IA, v); else localStorage.removeItem(CLAVE_IA); } catch (e) { /* almacenamiento bloqueado */ } };
+  function fotosParaAnalisis() {
+    const sel = [];
+    ANGULOS.forEach(ang => {
+      const fs = ui.fotos.filter(f => f.ang === ang);
+      if (!fs.length) return;
+      const ahora = fs[fs.length - 1];
+      sel.push({ f: ahora, etiqueta: `Foto · ${ang} · ahora (${fechaCorta(parseDia(ahora.fecha))})` });
+      if (fs[0] !== ahora) sel.push({ f: fs[0], etiqueta: `Foto · ${ang} · antes (${fechaCorta(parseDia(fs[0].fecha))})` });
+    });
+    return sel.slice(0, 6);
+  }
+  function contextoIA() {
+    const a = D.ajustes, M = medidasOrdenadas(), last = M[M.length - 1], first = M[0];
+    const P = D.peso, pl = P[P.length - 1], hace28 = P.find(p => parseDia(p.fecha).getTime() >= Date.now() - 28 * DAY);
+    const linea = m => Cuerpo.MEDIDAS.filter(([k]) => m[k]).map(([k, l]) => `${l} ${r1(m[k])} cm`).join(', ');
+    const plan = volumenSemana().filas.filter(f => f.plan).map(f => `${f.g} ${f.plan}`).join(', ');
+    const desde = Date.now() - 28 * DAY;
+    return [
+      'DATOS DE LA PERSONA',
+      `Objetivo: ${PRG.objetivo || 'recomposición corporal'}. Programa: ${PRG.nombre || 'fuerza 5 días'}.`,
+      a.sexo ? `Sexo: ${a.sexo === 'h' ? 'hombre' : 'mujer'}.` : '',
+      a.altura ? `Altura: ${a.altura} cm.` : '',
+      pl ? `Peso actual: ${r1(pl.kg)} kg (${pl.fecha})${hace28 && hace28 !== pl ? `; hace ~4 semanas ${r1(hace28.kg)} kg` : ''}.` : '',
+      last ? `Medidas actuales (${last.fecha}): ${linea(last)}.` : '',
+      first && first !== last ? `Primeras medidas (${first.fecha}): ${linea(first)}.` : '',
+      grasaDe(last) != null ? `Grasa estimada por cinta métrica (fórmula de la Marina): ${grasaDe(last)} %.` : '',
+      plan ? `Series semanales planificadas por grupo: ${plan}.` : '',
+      `Sesiones de fuerza en las últimas 4 semanas: ${sesionesDesde(desde).length}.`
+    ].filter(Boolean).join('\n');
+  }
+  function vAnalisis() {
+    const sel = fotosParaAnalisis(), clave = leerClave();
+    let cab;
+    if (!sel.length) cab = `<div class="mu" style="font-size:13px;margin-top:6px">Sube al menos una foto (mejor frente, lado y espalda) para analizar tu físico.</div>`;
+    else if (!clave) cab = `<div class="mu" style="font-size:13px;margin:6px 0 10px">Para analizar tus fotos con Claude necesitas tu clave de API de Anthropic. Se guarda solo en este teléfono.</div><button class="btn btn-w btn-ghost" style="height:48px;font-size:14px" data-act="ajustes">Configurar la IA</button>`;
+    else cab = `<div class="mu" style="font-size:13px;margin:6px 0 10px">Analizo ${sel.length} foto${sel.length === 1 ? '' : 's'} (${sel.map(x => x.etiqueta.replace('Foto · ', '')).join(' · ')}) junto con tus medidas y tu programa. Cuesta unos 5 céntimos de dólar en tu cuenta de Anthropic.</div>
+      <button class="btn btn-w btn-ac" style="height:52px" data-act="analizar"${ui.analizando ? ' disabled' : ''}>${ui.analizando ? 'Analizando… (hasta 1 minuto)' : 'Analizar mis fotos'}</button>`;
+    const A = D.analisis, idx = ui.verAn != null ? ui.verAn : A.length - 1, an = A[idx];
+    let res = '';
+    if (an) {
+      const r = an.resultado, lista = xs => xs.map(x => `<li>${esc(x)}</li>`).join('');
+      res = `<div class="card mt10 ia">
+        <div class="between"><div class="lbl">ANÁLISIS · ${fechaCorta(parseDia(an.fecha))}</div><div class="mu" style="font-size:12px">${an.fotos} foto${an.fotos === 1 ? '' : 's'}</div></div>
+        <div style="font-size:15px;line-height:1.45;margin-top:8px">${esc(r.resumen)}</div>
+        <div class="grid2 mt12"><div class="stat" style="text-align:left"><div class="mu" style="font-size:12px">Grasa estimada (foto)</div><div class="c" style="font-size:30px;color:var(--b1)">${r1(r.grasa_min)}–${r1(r.grasa_max)} %</div></div>
+        <div class="stat" style="text-align:left"><div class="mu" style="font-size:12px">Por cinta métrica</div><div class="c" style="font-size:30px;color:var(--si)">${grasaDe(medidasOrdenadas().slice(-1)[0]) != null ? grasaDe(medidasOrdenadas().slice(-1)[0]) + ' %' : '—'}</div></div></div>
+        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4">${esc(r.grasa_comentario)}</div>
+        <div class="ia-h">Contextura</div><div class="ia-t">${esc(r.contextura)}</div>
+        <div class="ia-h">Puntos fuertes</div><ul class="ia-l">${lista(r.fuertes)}</ul>
+        <div class="ia-h">A mejorar</div>${r.mejorar.map(m => `<div class="ia-m"><b>${esc(m.zona)}</b><div class="ia-t">${esc(m.observacion)}</div><div class="ia-t" style="color:var(--b1)">→ ${esc(m.sugerencia)}</div></div>`).join('')}
+        <div class="ia-h">Postura</div><div class="ia-t">${esc(r.postura)}</div>
+        <div class="ia-h">Cambios</div><div class="ia-t">${esc(r.cambios)}</div>
+        <div class="ia-h">Para las próximas semanas</div><ul class="ia-l">${lista(r.recomendaciones)}</ul>
+        <div class="mu" style="font-size:12px;margin-top:10px;line-height:1.4">Calidad de las fotos: ${esc(r.calidad_fotos)}</div>
+        <div class="mu" style="font-size:11px;margin-top:8px">Estimación visual hecha por IA; no es una medición ni un diagnóstico médico.</div>
+      </div>`;
+      if (A.length > 1) res += `<div class="chips mt8">${A.map((x, i) => `<button class="chip soft${i === idx ? ' on' : ''}" data-act="verAn" data-i="${i}">${fechaCorta(parseDia(x.fecha))}</button>`).reverse().join('')}</div>`;
+    }
+    return `<div class="card mt16"><div class="lbl">ANÁLISIS CON IA</div>${cab}</div>${res}`;
+  }
+
   function vFotos() {
     const ang = ANGULOS[ui.ang];
     const fotos = ui.fotos.filter(f => f.ang === ang);
@@ -811,7 +932,8 @@
       <div class="row mu" style="margin-top:14px;gap:8px;font-size:12px"><span style="color:var(--ac)">●</span> Privadas · se guardan solo en este dispositivo</div>
       <div class="row mt10" style="gap:8px">${chips}</div>
       <div class="chips mt12" style="gap:10px;padding-bottom:4px"><button class="thumb-add" data-act="addFoto"><div style="font-size:26px">+</div>Añadir</button>${thumbs}</div>
-      ${cmp}`;
+      ${cmp}
+      ${vAnalisis()}`;
   }
   function liftsHist() {
     const m = new Map();
@@ -899,7 +1021,15 @@
           <div><div class="field-l">UNIDAD</div><div class="seg" style="margin-top:6px;height:48px;align-items:center"><button class="${u === 'kg' ? 'on' : ''}" data-act="setUnit" data-u="kg">kg</button><button class="${u === 'lb' ? 'on' : ''}" data-act="setUnit" data-u="lb">lb</button></div></div>
         </div>
         <div class="mu" style="font-size:12px;margin-top:8px">Todo se guarda internamente en kg: cambiar de unidad no mezcla registros.</div>
+        <div class="grid2 mt12">
+          <div><div class="field-l">ALTURA (cm)</div><input class="input" style="margin-top:6px" value="${a.altura || ''}" placeholder="Para % de grasa" inputmode="decimal" data-in="aj-altura"></div>
+          <div><div class="field-l">SEXO</div><div class="seg" style="margin-top:6px;height:48px;align-items:center"><button class="${a.sexo === 'h' ? 'on' : ''}" data-act="setSexo" data-v="h">Hombre</button><button class="${a.sexo === 'm' ? 'on' : ''}" data-act="setSexo" data-v="m">Mujer</button></div></div>
+        </div>
         <button class="btn btn-w btn-ac mt16" data-act="closeAjustes">Listo</button>
+        ${a.onboarded ? `
+        <div class="field-l mt18">ANÁLISIS DE FOTOS CON IA</div>
+        <input class="input" style="margin-top:6px;font-weight:500;font-size:14px" type="password" autocomplete="off" spellcheck="false" placeholder="Clave de API de Anthropic (sk-ant-…)" value="${esc(leerClave())}" data-in="aj-clave">
+        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4">Créala en console.anthropic.com → API Keys (necesita saldo en esa cuenta). Se guarda solo en este teléfono y no entra en las copias. Al analizar, las fotos se envían a Anthropic.</div>` : ''}
         ${a.onboarded ? `
         <div class="field-l mt18">COPIA DE SEGURIDAD</div>
         <div class="mu" style="font-size:12px;margin-top:4px">Los datos viven en este dispositivo. Exporta una copia de vez en cuando (las fotos no se incluyen).</div>
@@ -1102,6 +1232,35 @@
   function responder(v) { const p = pendiente; pendiente = null; renderOverlay(); if (p) p.res(v); }
   const A = {
     confSi: () => responder(true),
+    setSexo: d => { D.ajustes.sexo = d.v; save(); render(); },
+    medUnidad: d => { D.ajustes.unidadMedida = d.v; ui.med = {}; save(); render(); },
+    medAyuda: () => { ui.medAyuda = !ui.medAyuda; render(); },
+    guardarMedidas: () => {
+      const vals = {};
+      Cuerpo.MEDIDAS.forEach(([k]) => { const v = aCm(ui.med[k]); if (v) vals[k] = Math.round(v * 10) / 10; });
+      if (!Object.keys(vals).length) { toast('Escribe al menos una medida'); return; }
+      const f = isoDia(), ex = D.medidas.find(m => m.fecha === f);
+      if (ex) Object.assign(ex, vals); else D.medidas.push({ fecha: f, ...vals });
+      ui.med = {}; save(); render(); toast('Medidas guardadas');
+    },
+    verAn: d => { ui.verAn = +d.i; render(); },
+    analizar: async () => {
+      const clave = leerClave();
+      if (!clave) { ui.ajustes = true; renderOverlay(); return; }
+      if (!navigator.onLine) { toast('El análisis necesita internet'); return; }
+      const sel = fotosParaAnalisis();
+      if (!sel.length) { toast('Sube al menos una foto'); return; }
+      ui.analizando = true; render();
+      let r;
+      try {
+        const fotos = await Promise.all(sel.map(async x => ({ etiqueta: x.etiqueta, blob: await (await fetch(x.f.url)).blob() })));
+        r = await Cuerpo.analizarFotos(clave, fotos, contextoIA());
+      } catch (e) { r = { ok: false, error: 'No se pudieron leer las fotos.' }; }
+      ui.analizando = false;
+      if (r.ok) { D.analisis.push({ fecha: isoDia(), fotos: sel.length, modelo: r.modelo, resultado: r.resultado }); ui.verAn = null; save(); toast('Análisis listo'); }
+      else toast(r.error);
+      if (ui.screen === 'progreso') render();
+    },
     lista: () => { ui.lista = { nuevo: '', series: 3, grupo: 'Pecho' }; renderOverlay(); },
     listaCerrar: () => { ui.lista = null; renderOverlay(); },
     listaIr: d => { D.activo.exi = +d.i; D.activo.restEnd = 0; lastRest = 0; ui.lista = null; save(); render(); },
@@ -1289,6 +1448,9 @@
     'aj-nombre': el => { D.ajustes.nombre = el.value; save(); },
     'aj-meta': el => { const v = toKg(el.value); D.ajustes.metaPeso = v > 0 ? Math.round(v * 100) / 100 : null; save(); },
     'aj-obj': el => { D.ajustes.objetivoSemanal = clamp(parseInt(el.value) || 1, 1, 7); save(); },
+    med: (el, d) => { ui.med[d.k] = el.value; },
+    'aj-altura': el => { const v = parseFloat(String(el.value).replace(',', '.')); D.ajustes.altura = v > 100 && v < 250 ? v : null; save(); },
+    'aj-clave': el => { guardarClave(el.value.trim()); },
     'aj-desc': el => { D.ajustes.descanso = clamp(parseInt(el.value) || 90, 10, 600); save(); }
   };
 

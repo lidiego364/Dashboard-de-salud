@@ -167,3 +167,15 @@ test('escala de pesos según el equipo, en libras', () => {
   assert.equal(enLb(Coach.paso(11 / LB, 'Mancuernas', 'lb')), 1);
   assert.equal(enLb(Coach.paso(42 / LB, 'Mancuernas', 'lb')), 2);
 });
+
+// ---------- Medidas ----------
+const Cuerpo = require('../fuerza/cuerpo.js');
+
+test('grasa por cinta métrica (Marina EE. UU.)', () => {
+  assert.equal(Cuerpo.grasaNavy({ sexo: 'h', altura: 178, cintura: 90, cuello: 40 }), 18.7);
+  const m = Cuerpo.grasaNavy({ sexo: 'm', altura: 165, cintura: 72, cuello: 32, cadera: 98 });
+  assert.ok(m > 20 && m < 35);
+  assert.equal(Cuerpo.grasaNavy({ sexo: null, altura: 178, cintura: 90, cuello: 40 }), null);
+  assert.equal(Cuerpo.grasaNavy({ sexo: 'h', altura: 178, cintura: 38, cuello: 40 }), null);
+  assert.equal(Cuerpo.grasaNavy({ sexo: 'm', altura: 165, cintura: 72, cuello: 32 }), null);
+});
