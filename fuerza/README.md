@@ -25,6 +25,14 @@ App web (PWA) para registrar el entrenamiento de fuerza desde el móvil. Funcion
 
 Pruebas: `node --test tests/fuerza_coach.test.js`.
 
+## Medidas y análisis de fotos con IA
+
+- **Medidas** (Progreso → Medidas): cintura, cuello, pecho, hombros, brazo, muslo y cadera, en cm o pulgadas. Con altura y sexo (Ajustes) estima el % de grasa con la fórmula de la Marina de EE. UU. y, con el último peso, la masa magra y la grasa en kilos, además de la relación cintura/altura.
+- **Análisis de fotos** (Progreso → Fotos): [`cuerpo.js`](cuerpo.js) envía a Claude (`claude-opus-5-5`) la última foto de cada ángulo y la primera para comparar, junto con medidas, peso y programa, y recibe un análisis estructurado: contextura, rango de grasa estimado, puntos fuertes, zonas a mejorar con sugerencias, postura, cambios y recomendaciones.
+  - Usa la clave de API de Anthropic del propio usuario (Ajustes → Análisis de fotos con IA). Se guarda solo en el teléfono y no entra en las copias.
+  - Cada análisis cuesta unos céntimos en esa cuenta. Las fotos se envían a Anthropic solo al pulsar *Analizar*.
+  - El SDK oficial va empaquetado en [`vendor/`](vendor/README.md) y solo se carga al analizar.
+
 ## Importar historial de StrengthLab
 
 En Ajustes → *Importar* (o en Progreso → Fuerza, si aún no hay historial) elige el CSV exportado de StrengthLab (`progreso-strengthlab-*.csv`). [`importar.js`](importar.js):

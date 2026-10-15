@@ -230,3 +230,10 @@ button.num.pick { border: 0; }
 .lt .mu { font-size: 12px; }
 .lbtn { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--tx); font: 700 16px 'DM Sans'; padding: 0; }
 .lbtn.x { color: var(--b2); font-size: 20px; }
+
+/* Medidas y análisis con IA */
+.ia-h { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--mu); text-transform: uppercase; margin-top: 14px; }
+.ia-t { font-size: 14px; line-height: 1.45; margin-top: 4px; }
+.ia-l { margin: 6px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.45; }
+.ia-m { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: var(--app); }
+.btn:disabled { opacity: .6; }
