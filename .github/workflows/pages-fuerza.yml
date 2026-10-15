@@ -30,6 +30,9 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      - name: Marcar la versión publicada
+        run: echo "window.FUERZA_VERSION = '$(git rev-parse --short HEAD) · $(date -u +%Y-%m-%d)';" > fuerza/version.js
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: fuerza

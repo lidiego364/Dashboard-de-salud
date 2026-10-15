@@ -879,8 +879,10 @@
   function vAnalisis() {
     const sel = fotosParaAnalisis(), clave = leerClave();
     let cab;
-    if (!sel.length) cab = `<div class="mu" style="font-size:13px;margin-top:6px">Sube al menos una foto (mejor frente, lado y espalda) para analizar tu físico.</div>`;
-    else if (!clave) cab = `<div class="mu" style="font-size:13px;margin:6px 0 10px">Para analizar tus fotos con Claude necesitas tu clave de API de Anthropic. Se guarda solo en este teléfono.</div><button class="btn btn-w btn-ghost" style="height:48px;font-size:14px" data-act="ajustes">Configurar la IA</button>`;
+    if (!clave) cab = `<div class="mu" style="font-size:13px;margin:6px 0 10px;line-height:1.4">Para analizar tus fotos con Claude pega aquí tu clave de API de Anthropic (créala en console.anthropic.com → API Keys). Se guarda solo en este teléfono.</div>
+      <input class="input" style="font-weight:500;font-size:14px" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" data-in="an-clave">
+      <button class="btn btn-w btn-ac mt10" style="height:48px;font-size:14px" data-act="guardarClaveIA">Guardar clave</button>`;
+    else if (!sel.length) cab = `<div class="mu" style="font-size:13px;margin-top:6px">Sube al menos una foto (mejor frente, lado y espalda) para analizar tu físico.</div>`;
     else cab = `<div class="mu" style="font-size:13px;margin:6px 0 10px">Analizo ${sel.length} foto${sel.length === 1 ? '' : 's'} (${sel.map(x => x.etiqueta.replace('Foto · ', '')).join(' · ')}) junto con tus medidas y tu programa. Cuesta unos 5 céntimos de dólar en tu cuenta de Anthropic.</div>
       <button class="btn btn-w btn-ac" style="height:52px" data-act="analizar"${ui.analizando ? ' disabled' : ''}>${ui.analizando ? 'Analizando… (hasta 1 minuto)' : 'Analizar mis fotos'}</button>`;
     const A = D.analisis, idx = ui.verAn != null ? ui.verAn : A.length - 1, an = A[idx];
@@ -1036,6 +1038,7 @@
         <div class="grid2 mt10"><button class="btn btn-ghost" data-act="export">Exportar</button><button class="btn btn-ghost" data-act="import">Importar</button></div>
         <div class="mu" style="font-size:12px;margin-top:6px">Importar acepta una copia de Fuerza (.json) o tu historial de StrengthLab (.csv), que se añade sin borrar nada.</div>
         <div style="text-align:center;margin-top:8px"><button class="btn-link danger" data-act="reset">Borrar todos los datos</button></div>` : ''}
+        <div class="mu" style="font-size:11px;text-align:center;margin-top:14px">Versión ${esc(window.FUERZA_VERSION || 'local')}</div>
       </div>`;
   }
 
@@ -1244,6 +1247,11 @@
       ui.med = {}; save(); render(); toast('Medidas guardadas');
     },
     verAn: d => { ui.verAn = +d.i; render(); },
+    guardarClaveIA: () => {
+      const v = (ui.claveTmp || '').trim();
+      if (!/^sk-ant-/.test(v)) { toast('La clave empieza por sk-ant-'); return; }
+      guardarClave(v); ui.claveTmp = ''; render(); toast('Clave guardada');
+    },
     analizar: async () => {
       const clave = leerClave();
       if (!clave) { ui.ajustes = true; renderOverlay(); return; }
@@ -1451,6 +1459,7 @@
     med: (el, d) => { ui.med[d.k] = el.value; },
     'aj-altura': el => { const v = parseFloat(String(el.value).replace(',', '.')); D.ajustes.altura = v > 100 && v < 250 ? v : null; save(); },
     'aj-clave': el => { guardarClave(el.value.trim()); },
+    'an-clave': el => { ui.claveTmp = el.value; },
     'aj-desc': el => { D.ajustes.descanso = clamp(parseInt(el.value) || 90, 10, 600); save(); }
   };
 
