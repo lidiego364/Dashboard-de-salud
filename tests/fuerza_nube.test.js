@@ -75,3 +75,12 @@ test('base64 UTF-8 ida y vuelta con tildes y emojis', () => {
   const s = 'Jalón al pecho · 💪 · ñandú';
   assert.equal(Nube.base64Utf8(Nube.utf8Base64(s)), s);
 });
+
+test('modo libre: acepta el JSON pegado sin comillas de bloque', () => {
+  const txt = 'Aquí tienes:\n{"motivo":"Menos volumen","cambios":[{"accion":"quitar","dia":"jueves","ejercicio":"Pullover en polea alta"}]}\nSuerte';
+  assert.equal(Nube.parsearPropuesta(txt), null);
+  const p = Nube.parsearPropuesta(txt, { libre: true });
+  assert.equal(p.motivo, 'Menos volumen');
+  assert.equal(p.cambios[0].accion, 'quitar');
+  assert.equal(Nube.parsearPropuesta('{"hola": 1}', { libre: true }), null);
+});
