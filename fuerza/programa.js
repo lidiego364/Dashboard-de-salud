@@ -17,7 +17,7 @@
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
-  version: 6,
+  version: 7,
   nombre: 'Programa de fuerza v6',
   objetivo: 'Recomposición en déficit',
   perfil: { nombre: 'Diego', diasSemana: 5 },
@@ -99,10 +99,10 @@ window.PROGRAMA_FUERZA = {
       id: 'jueves-pecho-espalda', duracion: '70–80 min', dia: 4, nombre: 'PECHO Y ESPALDA', enfoque: 'Pecho, espalda',
       nota: 'Alterna por parejas (1-2, 3-4, 5-6): descansas un patrón mientras trabajas el otro, pero cuenta el descanso completo entre series del mismo ejercicio.',
       ejercicios: [
-        { nombre: 'Press inclinado con barra', grupo: 'Pecho', equipo: 'Barra', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press inclinado con mancuernas'] },
+        { nombre: 'Press inclinado en Smith', alias: ['Press inclinado con barra Smith', 'Press inclinado en máquina Smith'], grupo: 'Pecho', equipo: 'Smith', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press inclinado con barra', 'Press inclinado con mancuernas'] },
         { nombre: 'Remo en T', alias: ['Remo en T o remo Hammer'], grupo: 'Espalda', equipo: 'Barra T', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Remo Hammer', 'Remo con apoyo de pecho', 'Remo sentado en polea'], notas: 'Demanda lumbar: si molesta la espalda, cambia a Hammer o remo sentado en polea.' },
-        { nombre: 'Press plano con mancuernas', grupo: 'Pecho', equipo: 'Mancuernas', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press de pecho en máquina', 'Fondos en paralelas'] },
-        { nombre: 'Remo con mancuerna a una mano', grupo: 'Espalda', equipo: 'Mancuerna', series: 3, reps: '10-12', rpe: '8', descanso: 90, alternativas: ['Remo en polea unilateral'] },
+        { nombre: 'Press de pecho en máquina', grupo: 'Pecho', equipo: 'Máquina', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press plano con mancuernas', 'Fondos en paralelas'] },
+        { nombre: 'Remo en máquina a una mano', alias: ['Remo en máquina con una mano', 'Remo unilateral en máquina'], grupo: 'Espalda', equipo: 'Máquina', series: 3, reps: '10-12', rpe: '8', descanso: 90, alternativas: ['Remo con mancuerna a una mano', 'Remo en polea unilateral'] },
         { nombre: 'Aperturas en polea', alias: ['Aperturas en polea o pec deck'], grupo: 'Pecho', equipo: 'Polea', series: 2, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Pec deck', 'Aperturas con mancuernas'] },
         { nombre: 'Pullover en polea alta', grupo: 'Espalda', equipo: 'Polea', series: 2, reps: '12-15', rpe: '8', descanso: 60, alternativas: ['Pullover con mancuerna'] }
       ]
