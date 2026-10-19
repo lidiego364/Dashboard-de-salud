@@ -17,7 +17,7 @@
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
-  version: 4,
+  version: 5,
   nombre: 'Programa de fuerza v6',
   objetivo: 'Recomposición en déficit',
   perfil: { nombre: 'Diego', diasSemana: 5 },
@@ -57,13 +57,13 @@ window.PROGRAMA_FUERZA = {
       id: 'lunes-push', duracion: '80–90 min', dia: 1, nombre: 'PUSH', enfoque: 'Pecho, hombro, tríceps',
       nota: 'Superserie posible: elevaciones laterales con extensión en polea.',
       ejercicios: [
-        { nombre: 'Press banca con barra', grupo: 'Pecho', equipo: 'Barra', series: 4, reps: '5-7', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press banca con mancuernas', 'Press de pecho en máquina'], notas: 'Nunca al fallo en básicos.' },
-        { nombre: 'Press militar sentado con barra', alias: ['Press militar sentado con barra (respaldo)'], grupo: 'Hombro', equipo: 'Barra · respaldo', series: 3, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press de hombro en máquina', 'Press militar en Smith sentado'] },
+        { nombre: 'Press banca en Smith', alias: ['Press banca con barra Smith', 'Press de banca en máquina Smith', 'Press banca en máquina Smith'], grupo: 'Pecho', equipo: 'Smith', series: 4, reps: '5-7', rpe: '≤ 8.5', descanso: 180, alternativas: ['Press banca con barra', 'Press banca con mancuernas', 'Press de pecho en máquina'], notas: 'Nunca al fallo en básicos.' },
+        { nombre: 'Press militar con mancuernas sentado', alias: ['Press militar sentado con mancuernas'], grupo: 'Hombro', equipo: 'Mancuernas', series: 3, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press militar sentado con barra', 'Press de hombro en máquina', 'Press militar en Smith sentado'] },
         { nombre: 'Press inclinado con mancuernas', grupo: 'Pecho', equipo: 'Mancuernas', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press inclinado con barra', 'Press inclinado en máquina'] },
-        { nombre: 'Cruce de poleas de abajo hacia arriba', alias: ['Cruce de poleas bajo-alto'], grupo: 'Pecho', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 75, alternativas: ['Cruce de poleas a media altura', 'Pec deck'] },
+        { nombre: 'Pec deck', alias: ['Peck deck', 'Contractor de pecho'], grupo: 'Pecho', equipo: 'Máquina', series: 3, reps: '12-15', rpe: '9', descanso: 75, alternativas: ['Cruce de poleas de abajo hacia arriba', 'Cruce de poleas a media altura'] },
         { nombre: 'Elevaciones laterales', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales en polea', 'Elevaciones laterales en máquina'] },
-        { nombre: 'Press francés con barra Z', grupo: 'Tríceps', equipo: 'Barra Z', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Extensión sobre la cabeza con mancuerna'], notas: 'Enfocado en la cabeza larga.' },
-        { nombre: 'Extensión en polea con cuerda', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Extensión en polea con barra recta', 'Extensión de tríceps en máquina'], notas: 'Si recortas, es de lo primero que se quita.' },
+        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Press francés con barra Z', 'Extensión sobre la cabeza con mancuerna'], notas: 'Enfocado en la cabeza larga.' },
+        { nombre: 'Extensión en polea con cuerda', alias: ['Extensión de tríceps en polea con cuerda'], grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Extensión en polea con barra recta', 'Extensión de tríceps en máquina'], notas: 'Si recortas, es de lo primero que se quita.' },
         { nombre: 'Face pull ligero', grupo: 'Deltoide posterior', equipo: 'Polea', series: 2, reps: '18-20', rpe: '6-7', descanso: 45, opcional: true, notas: 'Opcional del bloque de espalda alta.' }
       ]
     },
