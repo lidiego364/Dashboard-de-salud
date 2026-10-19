@@ -2,7 +2,7 @@
 // Estrategia: los archivos de la app van primero a la red (así cada publicación
 // llega al momento) y, sin conexión, se sirven desde caché. Las fuentes, desde caché.
 const CACHE = 'fuerza-v2';
-const SHELL = ['./', 'index.html', 'styles.css', 'version.js', 'app.js', 'programa.js', 'coach.js', 'importar.js', 'cuerpo.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css', 'version.js', 'app.js', 'programa.js', 'coach.js', 'importar.js', 'cuerpo.js', 'nube.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
