@@ -17,7 +17,7 @@
 //   desde         (opcional) Fecha "AAAA-MM-DD" a partir de la que entra en la rutina.
 //   notas         Indicaciones técnicas.
 window.PROGRAMA_FUERZA = {
-  version: 7,
+  version: 8,
   nombre: 'Programa de fuerza v6',
   objetivo: 'Recomposición en déficit',
   perfil: { nombre: 'Diego', diasSemana: 5 },
@@ -61,7 +61,7 @@ window.PROGRAMA_FUERZA = {
         { nombre: 'Press militar con mancuernas sentado', alias: ['Press militar sentado con mancuernas'], grupo: 'Hombro', equipo: 'Mancuernas', series: 3, reps: '6-8', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press militar sentado con barra', 'Press de hombro en máquina', 'Press militar en Smith sentado'] },
         { nombre: 'Press inclinado con mancuernas', grupo: 'Pecho', equipo: 'Mancuernas', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press inclinado con barra', 'Press inclinado en máquina'] },
         { nombre: 'Pec deck', alias: ['Peck deck', 'Contractor de pecho'], grupo: 'Pecho', equipo: 'Máquina', series: 3, reps: '12-15', rpe: '9', descanso: 75, alternativas: ['Cruce de poleas de abajo hacia arriba', 'Cruce de poleas a media altura'] },
-        { nombre: 'Elevaciones laterales', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales en polea', 'Elevaciones laterales en máquina'] },
+        { nombre: 'Elevaciones laterales', alias: ['Elevaciones laterales con mancuernas'], grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales en polea', 'Elevaciones laterales en máquina'] },
         { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Press francés con barra Z', 'Extensión sobre la cabeza con mancuerna'], notas: 'Enfocado en la cabeza larga.' },
         { nombre: 'Extensión en polea con cuerda', alias: ['Extensión de tríceps en polea con cuerda'], grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Extensión en polea con barra recta', 'Extensión de tríceps en máquina'], notas: 'Si recortas, es de lo primero que se quita.' },
         { nombre: 'Face pull ligero', grupo: 'Deltoide posterior', equipo: 'Polea', series: 2, reps: '18-20', rpe: '6-7', descanso: 45, opcional: true, notas: 'Opcional del bloque de espalda alta.' }
@@ -112,12 +112,12 @@ window.PROGRAMA_FUERZA = {
       nota: 'Registra siempre el viernes. Si se alarga más de 90 min, quita primero una serie de laterales.',
       ejercicios: [
         { nombre: 'Press militar con mancuernas sentado', grupo: 'Hombro', equipo: 'Mancuernas', series: 4, reps: '8-10', rpe: '≤ 8.5', descanso: 150, alternativas: ['Press Arnold', 'Press de hombro en máquina'] },
-        { nombre: 'Elevaciones laterales en polea', alias: ['Elevaciones laterales'], grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales', 'Elevaciones laterales en máquina'] },
+        { nombre: 'Elevaciones laterales en polea', alias: ['Elevaciones laterales'], grupo: 'Hombro', equipo: 'Polea', series: 4, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Elevaciones laterales con mancuernas'] },
         { nombre: 'Pájaros en polea', alias: ['Pájaros en polea a una mano', 'Pájaros en polea o reverse pec deck'], grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Reverse pec deck', 'Face pull'] },
-        { nombre: 'Fondos en paralelas', grupo: 'Tríceps', equipo: 'Peso corporal', series: 3, reps: '8-10', rpe: '8', descanso: 120, alternativas: ['Press cerrado', 'Fondos en máquina'] },
-        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] },
         { nombre: 'Bayesian curl', grupo: 'Bíceps', equipo: 'Polea', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl en banco inclinado'], notas: 'Polea lo más baja, paso adelante, brazo detrás del torso, codo fijo, baja hasta estirar.' },
-        { nombre: 'Curl concentrado', grupo: 'Bíceps', equipo: 'Mancuerna', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl martillo'] }
+        { nombre: 'Curl martillo', grupo: 'Bíceps', equipo: 'Mancuernas', series: 3, reps: '10-12', rpe: '9', descanso: 75, alternativas: ['Curl concentrado', 'Curl con cuerda'] },
+        { nombre: 'Extensión en polea con cuerda', alias: ['Extensión de tríceps en polea con cuerda'], grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Fondos en paralelas', 'Extensión en polea con barra recta'] },
+        { nombre: 'Extensión de tríceps sobre la cabeza en polea', grupo: 'Tríceps', equipo: 'Polea', series: 3, reps: '12-15', rpe: '9', descanso: 60, alternativas: ['Press francés con barra Z'] }
       ]
     }
   ]
