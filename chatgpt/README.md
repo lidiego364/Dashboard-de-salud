@@ -44,22 +44,37 @@ A partir de aquí la app se sincroniza sola al terminar un entrenamiento, al gua
 
 > ¿Tus datos están en el enlace de claude.ai? Allí: Ajustes → **Exportar**. En el enlace de GitHub Pages: Ajustes → **Importar** ese archivo. Después sincroniza.
 
-## 4. Crea el token para ChatGPT
+## 4. Elige cómo conectas ChatGPT
+
+- **Opción A · Conector de GitHub de ChatGPT** (la más fácil): ChatGPT lee tus datos en cualquier chat, pero no puede escribir. Los cambios que te proponga los pegas tú en la app.
+- **Opción B · GPT propio con acciones** (pasos 5 a 7): ChatGPT lee y deja las propuestas directamente en la app. Necesita ChatGPT Plus o superior.
+
+### Opción A · Conector de GitHub
+
+1. En ChatGPT: **Ajustes → Apps / Conectores → GitHub → Conectar**.
+2. En la página de GitHub que se abre, en **Repository access**, elige **Only select repositories** y marca `fuerza-datos`. Si ya estaba instalado, cámbialo en **https://github.com/settings/installations** → ChatGPT → **Configure**.
+3. Crea un **Proyecto** en ChatGPT llamado `Entrenador Fuerza` y, en sus **Instrucciones**, pega el contenido de [`instrucciones-conector.md`](instrucciones-conector.md).
+4. Dentro del proyecto, activa GitHub en el chat (botón **+** o **@GitHub**) y pregunta, por ejemplo: *"Lee resumen.md de lidiego364/fuerza-datos y dime cómo voy esta semana"*.
+5. Cuando te dé un bloque de cambios, cópialo y en la app ve a **Ajustes → Pegar cambios de la IA → Revisar cambios**. Verás la tarjeta en *Hoy* con **Aplicar** y **Descartar**.
+
+Los repositorios nuevos pueden tardar unos minutos en aparecer en ChatGPT.
+
+## 5. Crea el token para ChatGPT (opción B)
 
 Repite el paso 2 con nombre `Fuerza ChatGPT` y **solo Issues: Read and write** (no hace falta Contents). Así puedes revocar el acceso de ChatGPT sin desconectar la app.
 
-## 5. Crea tu GPT
+## 6. Crea tu GPT (opción B)
 
 1. En ChatGPT: **Explorar GPTs** → **Crear** → pestaña **Configurar**.
 2. **Nombre**: `Entrenador Fuerza`.
 3. **Instrucciones**: pega todo el contenido de [`instrucciones.md`](instrucciones.md).
 4. Abajo, **Acciones** → **Crear nueva acción**:
-   - **Autenticación** → **Clave de API** → tipo **Bearer** → pega el token del paso 4.
+   - **Autenticación** → **Clave de API** → tipo **Bearer** → pega el token del paso 5.
    - **Esquema**: pega todo el contenido de [`openapi.json`](openapi.json).
    - Si tu repositorio no se llama `lidiego364/fuerza-datos` o la app dice un número de issue distinto de `#1`, cámbialo en las rutas del esquema.
 5. **Guardar** → compartir con **Solo yo**.
 
-## 6. Úsalo
+## 7. Úsalo (opción B)
 
 Pregúntale cosas como:
 

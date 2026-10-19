@@ -98,18 +98,27 @@
 
   // ---------- Propuestas de cambios ----------
   // Busca un bloque ```fuerza (o ```json con "cambios") y devuelve { motivo, cambios } o null.
-  function parsearPropuesta(texto) {
+  // Con { libre: true } acepta también el JSON pegado sin las comillas de bloque.
+  function parsearPropuesta(texto, opts) {
     const t = String(texto || '');
     if (t.includes(MARCA)) return null;
+    const valida = obj => {
+      if (Array.isArray(obj)) obj = { cambios: obj };
+      return obj && Array.isArray(obj.cambios) && obj.cambios.length
+        ? { motivo: typeof obj.motivo === 'string' ? obj.motivo.slice(0, 600) : '', cambios: obj.cambios.slice(0, 40) }
+        : null;
+    };
     const re = /```\s*(fuerza|json)?\s*\n([\s\S]*?)```/gi;
     let m;
     while ((m = re.exec(t))) {
       let obj;
       try { obj = JSON.parse(m[2]); } catch (e) { continue; }
-      if (Array.isArray(obj)) obj = { cambios: obj };
-      if (obj && Array.isArray(obj.cambios) && obj.cambios.length) {
-        return { motivo: typeof obj.motivo === 'string' ? obj.motivo.slice(0, 600) : '', cambios: obj.cambios.slice(0, 40) };
-      }
+      const p = valida(obj);
+      if (p) return p;
+    }
+    if (opts && opts.libre) {
+      const i = t.indexOf('{'), j = t.lastIndexOf('}');
+      if (i >= 0 && j > i) { try { return valida(JSON.parse(t.slice(i, j + 1))); } catch (e) { /* no es JSON */ } }
     }
     return null;
   }

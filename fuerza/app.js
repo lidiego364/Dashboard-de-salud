@@ -1138,6 +1138,8 @@
         try { await gh.editarIssue(NB.issue, resumen); } catch (e) { if (e.codigo === 'no_encontrado') { NB.issue = null; NB.hResumen = null; } throw e; }
         NB.hResumen = hr;
       }
+      // Copia del resumen como archivo: los conectores de GitHub (p. ej. el de ChatGPT) leen archivos mejor que issues.
+      if (NB.hArchivo !== hr) { await gh.escribirArchivo('resumen.md', resumen, 'Fuerza: resumen ' + isoDia()); NB.hArchivo = hr; }
       const base = JSON.stringify({ ...D, activo: null }), hd = Nube.hash(base);
       if (NB.hDatos !== hd) {
         await gh.escribirArchivo('datos.json', JSON.stringify({ exportado: new Date().toISOString(), ...D, activo: null }, null, 1), 'Fuerza: datos ' + isoDia());
@@ -1159,27 +1161,41 @@
   async function revisarPropuestas(gh) {
     const lista = await gh.comentarios(NB.issue, NB.desde || null);
     const antes = nube.propuestas.map(p => p.id).join();
-    nube.propuestas = (lista || []).filter(c => c.id > (NB.ultimoId || 0) && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association))
-      .map(c => { const p = Nube.parsearPropuesta(c.body); return p && { id: c.id, fecha: c.created_at, ...p }; }).filter(Boolean);
+    nube.propuestas = nube.propuestas.filter(p => p.local).concat((lista || []).filter(c => c.id > (NB.ultimoId || 0) && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association))
+      .map(c => { const p = Nube.parsearPropuesta(c.body); return p && { id: c.id, fecha: c.created_at, ...p }; }).filter(Boolean));
     if (nube.propuestas.map(p => p.id).join() !== antes && ui.screen === 'hoy' && !ui.ajustes) render();
   }
   function vPropuesta() {
     const p = nube.propuestas[0];
     if (!p) return '';
     return `<div class="card mt14 aviso"><div class="cap" style="color:var(--b1)">CAMBIOS PROPUESTOS POR TU ENTRENADOR IA${nube.propuestas.length > 1 ? ' · 1 DE ' + nube.propuestas.length : ''}</div>
-      <div class="mu" style="font-size:12px;margin-top:2px">${fechaCorta(p.fecha)}</div>
+      <div class="mu" style="font-size:12px;margin-top:2px">${fechaCorta(p.fecha)}${p.local ? ' · pegada por ti' : ''}</div>
       ${p.motivo ? `<div style="font-size:14px;margin-top:6px;line-height:1.4">${esc(p.motivo)}</div>` : ''}
       <ul class="ia-l" style="margin-top:8px">${p.cambios.map(c => `<li>${esc(Nube.describir(c))}</li>`).join('')}</ul>
       <div class="grid2 mt10"><button class="btn btn-ghost" data-act="nubeDescartar">Descartar</button><button class="btn btn-ac" data-act="nubeAplicar">Aplicar</button></div></div>`;
   }
   function cerrarPropuesta(p, titulo, r) {
     nube.propuestas = nube.propuestas.filter(x => x.id !== p.id);
-    NB.ultimoId = Math.max(NB.ultimoId || 0, p.id); NB.desde = p.fecha; guardarNube();
+    if (!p.local) { NB.ultimoId = Math.max(NB.ultimoId || 0, p.id); NB.desde = p.fecha; guardarNube(); }
     let cuerpo = `${Nube.MARCA}\n**${titulo}** (${isoDia()}).`;
     if (r && r.hechos.length) cuerpo += '\n\n' + r.hechos.map(x => '- ✅ ' + x).join('\n');
     if (r && r.errores.length) cuerpo += '\n\nNo aplicado:\n' + r.errores.map(x => '- ⚠️ ' + x).join('\n');
-    if (nubeLista() && navigator.onLine) Nube.cliente(NB.repo, NB.token).comentar(NB.issue, cuerpo).catch(() => {});
+    if (p.local) cuerpo += '\n\n_Propuesta pegada en la app:_ ' + (p.motivo || '') + '\n' + p.cambios.map(c => '- ' + Nube.describir(c)).join('\n');
+    if (nubeLista() && navigator.onLine && NB.issue) Nube.cliente(NB.repo, NB.token).comentar(NB.issue, cuerpo).catch(() => {});
     render(); programarSync(1500);
+  }
+
+  function vSheetPegar() {
+    return `
+      <div class="sheet-bg" data-act="pegarCerrar"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="c" style="font-size:30px">PEGAR CAMBIOS DE LA IA</div>
+        <div class="mu" style="font-size:13px;margin-top:4px;line-height:1.4">Pega el bloque de cambios que te dio ChatGPT o Claude (con o sin las comillas \`\`\`fuerza). Antes de aplicar nada verás la lista en Hoy.</div>
+        <textarea class="input" style="margin-top:10px;height:180px;padding:12px;font:500 13px/1.4 ui-monospace,Menlo,monospace;resize:vertical" spellcheck="false" autocapitalize="off" placeholder='{"motivo": "...", "cambios": [ ... ]}' data-in="pegar-txt">${esc(ui.pegar.texto)}</textarea>
+        <button class="btn btn-w btn-ac mt12" data-act="pegarRevisar">Revisar cambios</button>
+        <div style="text-align:center;margin-top:8px"><button class="btn-link" data-act="pegarCerrar">Cancelar</button></div>
+      </div>`;
   }
 
   // ---------- Ajustes ----------
@@ -1216,7 +1232,8 @@
         <input class="input" style="margin-top:8px;font-weight:500;font-size:14px" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="usuario/repositorio (lidiego364/fuerza-datos)" value="${esc(NB.repo || '')}" data-in="nb-repo">
         <input class="input" style="margin-top:8px;font-weight:500;font-size:14px" type="password" autocomplete="off" spellcheck="false" placeholder="Token de GitHub (github_pat_…)" value="${esc(NB.token || '')}" data-in="nb-token">
         <div class="grid2 mt10"><button class="btn btn-ghost" data-act="nubeSync">Sincronizar ahora</button><button class="btn btn-ghost" data-act="nubeRestaurar">Restaurar de GitHub</button></div>
-        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4" data-nube-estado>${esc(estadoNube())}</div>` : ''}
+        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4" data-nube-estado>${esc(estadoNube())}</div>
+        <button class="btn btn-w btn-ghost mt10" data-act="pegarAbrir">Pegar cambios de la IA</button>` : ''}
         ${a.onboarded ? `
         <div class="field-l mt18">COPIA DE SEGURIDAD</div>
         <div class="mu" style="font-size:12px;margin-top:4px">Los datos viven en este dispositivo. Exporta una copia de vez en cuando (las fotos no se incluyen).</div>
@@ -1258,6 +1275,7 @@
     if (ui.picker && a && s === 'workout') h += vSheetPeso();
     if (ui.lista && a && s === 'workout') h += vSheetLista();
     if (ui.ajustes) h += vSheetAjustes();
+    if (ui.pegar) h += vSheetPegar();
     if (pendiente) {
       h += `<div class="sheet-bg" style="z-index:30" data-act="confNo"></div>
         <div class="dialog" role="alertdialog" aria-modal="true"><div class="dialog-msg">${esc(pendiente.msg)}</div>
@@ -1618,6 +1636,14 @@
       cerrarPropuesta(p, r.hechos.length ? '✅ Aplicado en la app' : '⚠️ No se pudo aplicar ningún cambio', r);
       toast(r.hechos.length ? `Plan actualizado (${r.hechos.length} cambio${r.hechos.length === 1 ? '' : 's'})${r.errores.length ? ' · ' + r.errores.length + ' sin aplicar' : ''}` : 'Ningún cambio se pudo aplicar');
     },
+    pegarAbrir: () => { ui.ajustes = false; ui.pegar = { texto: '' }; renderOverlay(); const t = document.querySelector('[data-in="pegar-txt"]'); if (t) t.focus(); },
+    pegarCerrar: () => { ui.pegar = null; renderOverlay(); },
+    pegarRevisar: () => {
+      const p = Nube.parsearPropuesta(ui.pegar.texto, { libre: true });
+      if (!p) { toast('No encuentro cambios válidos. Pega el JSON con "cambios": [...]'); return; }
+      nube.propuestas.unshift({ id: 'local-' + uid(), local: true, fecha: new Date().toISOString(), ...p });
+      ui.pegar = null; ui.screen = 'hoy'; render(); renderOverlay(); toast('Revisa los cambios y toca Aplicar');
+    },
     nubeDescartar: () => { const p = nube.propuestas[0]; if (p) { cerrarPropuesta(p, '❌ Descartado en la app', null); toast('Propuesta descartada'); } },
     // Copias
     export: async () => {
@@ -1680,9 +1706,10 @@
     'aj-altura': el => { const v = parseFloat(String(el.value).replace(',', '.')); D.ajustes.altura = v > 100 && v < 250 ? v : null; save(); },
     'aj-clave': el => { guardarClave(el.value.trim()); },
     'an-clave': el => { ui.claveTmp = el.value; },
+    'pegar-txt': el => { if (ui.pegar) ui.pegar.texto = el.value; },
     'nb-repo': el => {
       NB.repo = el.value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
-      Object.assign(NB, { verificado: false, issue: null, hResumen: null, hDatos: null, ultimoId: 0, desde: null, error: '' }); guardarNube();
+      Object.assign(NB, { verificado: false, issue: null, hResumen: null, hArchivo: null, hDatos: null, ultimoId: 0, desde: null, error: '' }); guardarNube();
     },
     'nb-token': el => { NB.token = el.value.trim(); NB.verificado = false; NB.error = ''; guardarNube(); },
     'aj-desc': el => { D.ajustes.descanso = clamp(parseInt(el.value) || 90, 10, 600); save(); }
