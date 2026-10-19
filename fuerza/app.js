@@ -56,7 +56,16 @@
   let D = load();
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { toast('No se pudo guardar en este dispositivo'); }
+    if (nubeLista() && !D.activo) programarSync();
   }
+  // Conexión con GitHub para ChatGPT y Claude. El token se guarda aparte: no entra en las copias.
+  const CLAVE_NUBE = 'fuerza.nube';
+  function leerNube() { try { return JSON.parse(localStorage.getItem(CLAVE_NUBE)) || {}; } catch (e) { return {}; } }
+  function guardarNube() { try { localStorage.setItem(CLAVE_NUBE, JSON.stringify(NB)); } catch (e) { /* almacenamiento bloqueado */ } }
+  let NB = leerNube();
+  const nube = { ocupado: false, otra: false, timer: 0, propuestas: [], revisado: 0 };
+  function nubeLista() { return !!(NB.repo && NB.token && window.Nube); }
+  function programarSync(ms = 5000) { clearTimeout(nube.timer); nube.timer = setTimeout(() => sincronizar(false), ms); }
   function normEj(e) {
     return {
       nombre: String(e.nombre || 'Ejercicio').trim(), grupo: e.grupo || 'Otro', equipo: e.equipo || '',
@@ -486,6 +495,7 @@
         ${vol.plan ? `<div class="between mt12" style="font-size:13px"><span class="mu">Series esta semana <b style="color:var(--tx)">${vol.hecho}</b> / ${vol.plan}</span><span class="mu">RPE medio <b style="color:${rpeS && rpeS > (PRG.umbralDescarga || 9.3) ? 'var(--warn)' : 'var(--tx)'}">${rpeS ? fRpe(rpeS) : '—'}</b></span></div>
         <div class="bar mt8"><div style="width:${clamp(vol.hecho / vol.plan * 100, 0, 100)}%"></div></div>` : ''}
       </div>
+      ${vPropuesta()}
       ${avisos}
       <div class="hero mt14">${hero}</div>
       <div class="card mt14">
@@ -1003,6 +1013,175 @@
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${prs}</div>`;
   }
 
+  // ---------- Conexión con ChatGPT y Claude (repositorio privado de GitHub) ----------
+  const GUIA_IA = 'https://github.com/lidiego364/Dashboard-de-salud/blob/main/chatgpt/README.md';
+  const esArtefacto = () => !!window.claude || /claude/i.test(location.hostname);
+  function estadoNube() {
+    if (!NB.repo || !NB.token) return 'Sin conectar.';
+    if (nube.ocupado) return 'Sincronizando…';
+    if (NB.error) return '⚠️ ' + NB.error;
+    if (!NB.ultimaSync) return 'Listo para sincronizar.';
+    const d = new Date(NB.ultimaSync);
+    return `✓ Sincronizado ${hace(d)} a las ${pad(d.getHours())}:${pad(d.getMinutes())}${NB.issue ? ' · resumen en el issue #' + NB.issue : ''}.`;
+  }
+  function pintarEstadoNube() { const el = document.querySelector('[data-nube-estado]'); if (el) el.textContent = estadoNube(); }
+
+  const kgTxt = kg => fv(kg) + ' ' + U();
+  const setsTxt = sets => sets.map(x => fv(x.kg) + '×' + x.reps + (x.rpe ? '@' + fRpe(x.rpe) : '')).join(', ');
+  const descTxt = s => s ? mmss(s) : '—';
+  function proximaTxt(e) {
+    if (e.opcional) return '—';
+    const p = planDe(e, seriesPlan(e), null, false);
+    if (!p || !p.sets.length || p.tipo === 'primera') return 'Primera vez: elige peso';
+    const kgs = [...new Set(p.sets.map(x => fv(x.kg)))], reps = [...new Set(p.sets.map(x => x.reps))];
+    const rpes = p.sets.map(x => x.rpe), rpe = Math.min(...rpes) === Math.max(...rpes) ? fRpe(rpes[0]) : fRpe(Math.min(...rpes)) + '→' + fRpe(Math.max(...rpes));
+    return `${p.titulo}: ${p.sets.length} × ${kgs.join('/')} ${U()} × ${reps.join('/')} @${rpe}`;
+  }
+  function mejorSerie(hist, t0 = 0, t1 = Infinity) {
+    let best = null;
+    hist.forEach(h => { const t = new Date(h.fecha).getTime(); if (t < t0 || t >= t1) return; h.sets.forEach(x => { const v = epley(x.kg, x.reps); if (x.kg > 0 && (!best || v > best.v)) best = { v, kg: x.kg, reps: x.reps, fecha: h.fecha }; }); });
+    return best;
+  }
+  // Texto que leen ChatGPT y Claude (cuerpo del issue). Máximo ~60 000 caracteres.
+  function textoResumen(diasSesiones = 42) {
+    const a = D.ajustes, u = U(), ahora = new Date(), L = [];
+    const P = D.peso, pl = P[P.length - 1];
+    L.push('# Fuerza · resumen para tu entrenador IA', '');
+    L.push(`Actualizado: ${isoDia(ahora)} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())} · Unidad de peso: **${u}** · Versión de la app: ${window.FUERZA_VERSION || 'local'}`, '');
+    L.push('> Este texto lo escribe la app Fuerza sola: no lo edites. Para proponer cambios al plan, comenta en este issue con un bloque `fuerza` (formato al final). La persona los verá en la app y decidirá si aplicarlos.', '');
+    L.push('## Perfil');
+    L.push(`- Nombre: ${a.nombre || '—'}${a.sexo ? ' · ' + (a.sexo === 'h' ? 'hombre' : 'mujer') : ''}${a.altura ? ' · ' + a.altura + ' cm' : ''}`);
+    if (pl) L.push(`- Peso corporal: ${kgTxt(pl.kg)} (${pl.fecha})${a.metaPeso ? ' · meta ' + kgTxt(a.metaPeso) : ''}`);
+    L.push(`- Programa: ${PRG.nombre || '—'} · objetivo: ${PRG.objetivo || '—'}${PRG.inicio ? ' · del ' + PRG.inicio + ' al ' + (PRG.fin || '—') : ''} · ${a.objetivoSemanal} días/semana`);
+    L.push(`- Sesiones registradas: ${D.sesiones.length}${D.sesiones.length ? ' (desde ' + D.sesiones[0].fecha.slice(0, 10) + ')' : ''}`);
+    if (PRG.reglasDescanso && PRG.reglasDescanso.length) L.push('- Reglas de descanso: ' + PRG.reglasDescanso.join(' '));
+    if (PRG.cardio && PRG.cardio.texto) L.push(`- Cardio tras las pesas: ${PRG.cardio.texto}. ${PRG.cardio.nota || ''}`);
+    L.push('', '## Plan actual', '');
+    D.rutinas.slice().sort((x, y) => (x.dia || 9) - (y.dia || 9)).forEach(r => {
+      L.push(`### ${r.dia ? DIA_NOMBRE[r.dia] + ' · ' : ''}${r.nombre} (${enfoque(r)}) · ${seriesRutina(r)} series`);
+      if (r.nota) L.push(r.nota);
+      L.push('', '| # | Ejercicio | Equipo | Series × reps | RPE | Descanso | Alternativas | Próxima sesión (entrenador de la app) |', '|---|---|---|---|---|---|---|---|');
+      r.ejercicios.forEach((e, i) => L.push(`| ${i + 1} | ${e.nombre}${e.opcional ? ' (opcional)' : ''} | ${e.equipo || '—'} | ${e.series} × ${e.reps} | ${e.rpe || '—'} | ${descTxt(e.descanso)} | ${(e.alternativas || []).join(' · ') || '—'} | ${proximaTxt(e)} |`));
+      L.push('');
+    });
+    Object.entries(PRG.diasLibres || {}).forEach(([d, x]) => L.push(`- ${DIA_NOMBRE[d]}: ${x.titulo}. ${x.nota || ''}`));
+    const vol = volumenSemana(), rs = rpeMedio(sesionesDesde(lunes(ahora).getTime()));
+    L.push('', '## Semana actual', `Series hechas ${vol.hecho} de ${vol.plan}${rs ? ' · RPE medio ' + fRpe(rs) : ''}.`);
+    L.push(vol.filas.map(f => `${f.g} ${f.hecho}/${f.plan}`).join(' · '));
+    const t4 = Date.now() - 28 * DAY, t8 = Date.now() - 56 * DAY;
+    L.push('', '## Tendencia por ejercicio', 'Mejor serie y 1RM estimado (Epley). "4 sem" = últimas 4 semanas frente a las 4 anteriores.', '');
+    const vistos = new Set();
+    D.rutinas.forEach(r => r.ejercicios.forEach(e => {
+      if (vistos.has(norm(e.nombre))) return;
+      vistos.add(norm(e.nombre));
+      const h = historialEj(e.nombre);
+      if (!h.length) return;
+      const b = mejorSerie(h), b4 = mejorSerie(h, t4), b8 = mejorSerie(h, t8, t4), ult = h[h.length - 1];
+      let tend = '';
+      if (b4 && b8) { const pct = Math.round((b4.v / b8.v - 1) * 100); tend = ` · 4 sem: ${fv(b4.v)} vs ${fv(b8.v)} ${u} (${pct >= 0 ? '+' : ''}${pct}%)`; }
+      L.push(`- ${e.nombre}: ${h.length} sesiones · récord ${b ? fv(b.kg) + '×' + b.reps + ' (' + b.fecha.slice(0, 10) + '), 1RM est. ' + fv(b.v) + ' ' + u : '—'}${tend} · última ${ult.fecha.slice(0, 10)}: ${setsTxt(ult.sets)}`);
+    }));
+    const recientes = sesionesDesde(Date.now() - diasSesiones * DAY).slice().reverse();
+    L.push('', `## Sesiones de los últimos ${diasSesiones} días (${recientes.length}, la más reciente primero)`, `Formato de cada serie: peso×reps@RPE, peso en ${u}.`, '');
+    recientes.forEach(s => {
+      L.push(`- **${s.fecha.slice(0, 10)} · ${s.nombre}**${s.duracion ? ' · ' + Math.round(s.duracion / 60) + ' min' : ''}${s.rpeMedio ? ' · RPE medio ' + fRpe(s.rpeMedio) : ''}${s.estado ? ' · llegó ' + s.estado : ''}${s.cardioMin ? ' · cardio ' + s.cardioMin + ' min' : ''}${s.descarga ? ' · descarga' : ''}`);
+      s.ejercicios.forEach(e => L.push(`  - ${e.nombre}${e.sustituye ? ' (en lugar de ' + e.sustituye + ')' : ''}: ${setsTxt(e.sets)}`));
+    });
+    if (P.length) { L.push('', '## Peso corporal (últimos registros)'); L.push(P.slice(-14).map(p => `${p.fecha}: ${fv(p.kg)}`).join(' · ') + ' ' + u); }
+    const M = medidasOrdenadas();
+    if (M.length) {
+      L.push('', '## Medidas (cm)');
+      M.slice(-4).forEach(m => L.push(`- ${m.fecha}: ` + Cuerpo.MEDIDAS.filter(([k]) => m[k]).map(([k, l]) => `${l} ${r1(m[k])}`).join(', ') + (grasaDe(m) != null ? ` · grasa (Marina) ${grasaDe(m)} %` : '')));
+    }
+    const an = D.analisis[D.analisis.length - 1];
+    if (an) {
+      const r = an.resultado;
+      L.push('', `## Último análisis de fotos con IA (${an.fecha})`, r.resumen, `Grasa estimada ${r1(r.grasa_min)}–${r1(r.grasa_max)} %. Contextura: ${r.contextura}`);
+      L.push('A mejorar: ' + r.mejorar.map(m => `${m.zona} (${m.sugerencia})`).join('; '));
+      L.push('Recomendaciones: ' + r.recomendaciones.join('; '));
+    }
+    L.push('', '## Cómo proponer cambios al plan', '');
+    L.push('Comenta en este issue con un bloque de código marcado `fuerza` que contenga JSON. Ejemplo:', '');
+    L.push('```fuerza', JSON.stringify({ motivo: 'Por qué propones estos cambios (1-3 frases).', cambios: [
+      { accion: 'modificar', dia: 'lunes', ejercicio: 'Press banca en Smith', series: 4, reps: '6-8', rpe: '≤ 8.5', descanso: '3:00' },
+      { accion: 'sustituir', dia: 'martes', ejercicio: 'Jalón agarre neutro', nuevo: { nombre: 'Remo sentado en polea', grupo: 'Espalda', equipo: 'Polea', series: 3, reps: '10-12', rpe: '8', descanso: 120 } },
+      { accion: 'anadir', dia: 'viernes', posicion: 3, nuevo: { nombre: 'Face pull', grupo: 'Deltoide posterior', equipo: 'Polea', series: 3, reps: '15-20', rpe: '8', descanso: 60, alternativas: ['Pájaros en polea'] } },
+      { accion: 'quitar', dia: 'jueves', ejercicio: 'Pullover en polea alta' },
+      { accion: 'mover', dia: 'miércoles', ejercicio: 'Crunch en polea', posicion: 1 },
+      { accion: 'nota_dia', dia: 'lunes', nota: 'Texto que verá al empezar el día.' }
+    ] }, null, 1), '```', '');
+    L.push('- `dia`: lunes…domingo o el nombre de la rutina. `ejercicio`: nombre exacto de la tabla del plan.');
+    L.push('- Campos que se pueden cambiar: series (1-10), reps (texto, p. ej. "8-10"), rpe (texto, p. ej. "8" o "≤ 8.5"), descanso (segundos o "m:ss"), alternativas (lista), notas, equipo, grupo, opcional.');
+    L.push('- Grupos válidos: ' + GRUPOS.join(', ') + '. Los pesos no se fijan aquí: los calcula el entrenador de la app con el historial.');
+    L.push('- Las respuestas de la app ("✅ Aplicado", "❌ Descartado") aparecen como comentarios en este issue.');
+    const txt = L.join('\n');
+    return txt.length > 60000 && diasSesiones > 7 ? textoResumen(Math.floor(diasSesiones / 2)) : txt.slice(0, 64000);
+  }
+  async function sincronizar(manual) {
+    if (!nubeLista()) return;
+    if (!navigator.onLine) { if (manual) toast('Sin conexión'); return; }
+    if (nube.ocupado) { nube.otra = true; return; }
+    nube.ocupado = true; nube.revisado = Date.now(); pintarEstadoNube();
+    try {
+      const gh = Nube.cliente(NB.repo, NB.token);
+      if (!NB.verificado) {
+        const info = await gh.info();
+        if (!info.private) throw new Nube.ErrorNube('publico', 'Ese repositorio es público y cualquiera vería tus datos. Hazlo privado en GitHub (Settings → Danger Zone → Change visibility) o usa otro.');
+        NB.verificado = true;
+      }
+      const resumen = textoResumen(), hr = Nube.hash(resumen);
+      if (!NB.issue) {
+        NB.issue = await gh.buscarIssue();
+        if (!NB.issue) { NB.issue = await gh.crearIssue(resumen); NB.hResumen = hr; }
+      }
+      if (NB.hResumen !== hr) {
+        try { await gh.editarIssue(NB.issue, resumen); } catch (e) { if (e.codigo === 'no_encontrado') { NB.issue = null; NB.hResumen = null; } throw e; }
+        NB.hResumen = hr;
+      }
+      const base = JSON.stringify({ ...D, activo: null }), hd = Nube.hash(base);
+      if (NB.hDatos !== hd) {
+        await gh.escribirArchivo('datos.json', JSON.stringify({ exportado: new Date().toISOString(), ...D, activo: null }, null, 1), 'Fuerza: datos ' + isoDia());
+        NB.hDatos = hd;
+      }
+      await revisarPropuestas(gh);
+      NB.ultimaSync = Date.now(); NB.error = '';
+      if (manual) toast('Sincronizado con GitHub');
+    } catch (e) {
+      NB.error = e.codigo === 'red' && esArtefacto()
+        ? 'Esta versión de la app no puede conectarse a GitHub. Usa la del enlace lidiego364.github.io/Dashboard-de-salud.'
+        : (e.codigo ? e.message : 'No se pudo sincronizar.');
+      if (manual) toast(NB.error);
+    } finally {
+      nube.ocupado = false; guardarNube(); pintarEstadoNube();
+      if (nube.otra) { nube.otra = false; programarSync(1000); }
+    }
+  }
+  async function revisarPropuestas(gh) {
+    const lista = await gh.comentarios(NB.issue, NB.desde || null);
+    const antes = nube.propuestas.map(p => p.id).join();
+    nube.propuestas = (lista || []).filter(c => c.id > (NB.ultimoId || 0) && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association))
+      .map(c => { const p = Nube.parsearPropuesta(c.body); return p && { id: c.id, fecha: c.created_at, ...p }; }).filter(Boolean);
+    if (nube.propuestas.map(p => p.id).join() !== antes && ui.screen === 'hoy' && !ui.ajustes) render();
+  }
+  function vPropuesta() {
+    const p = nube.propuestas[0];
+    if (!p) return '';
+    return `<div class="card mt14 aviso"><div class="cap" style="color:var(--b1)">CAMBIOS PROPUESTOS POR TU ENTRENADOR IA${nube.propuestas.length > 1 ? ' · 1 DE ' + nube.propuestas.length : ''}</div>
+      <div class="mu" style="font-size:12px;margin-top:2px">${fechaCorta(p.fecha)}</div>
+      ${p.motivo ? `<div style="font-size:14px;margin-top:6px;line-height:1.4">${esc(p.motivo)}</div>` : ''}
+      <ul class="ia-l" style="margin-top:8px">${p.cambios.map(c => `<li>${esc(Nube.describir(c))}</li>`).join('')}</ul>
+      <div class="grid2 mt10"><button class="btn btn-ghost" data-act="nubeDescartar">Descartar</button><button class="btn btn-ac" data-act="nubeAplicar">Aplicar</button></div></div>`;
+  }
+  function cerrarPropuesta(p, titulo, r) {
+    nube.propuestas = nube.propuestas.filter(x => x.id !== p.id);
+    NB.ultimoId = Math.max(NB.ultimoId || 0, p.id); NB.desde = p.fecha; guardarNube();
+    let cuerpo = `${Nube.MARCA}\n**${titulo}** (${isoDia()}).`;
+    if (r && r.hechos.length) cuerpo += '\n\n' + r.hechos.map(x => '- ✅ ' + x).join('\n');
+    if (r && r.errores.length) cuerpo += '\n\nNo aplicado:\n' + r.errores.map(x => '- ⚠️ ' + x).join('\n');
+    if (nubeLista() && navigator.onLine) Nube.cliente(NB.repo, NB.token).comentar(NB.issue, cuerpo).catch(() => {});
+    render(); programarSync(1500);
+  }
+
   // ---------- Ajustes ----------
   function vSheetAjustes() {
     const a = D.ajustes, u = U();
@@ -1031,7 +1210,13 @@
         ${a.onboarded ? `
         <div class="field-l mt18">ANÁLISIS DE FOTOS CON IA</div>
         <input class="input" style="margin-top:6px;font-weight:500;font-size:14px" type="password" autocomplete="off" spellcheck="false" placeholder="Clave de API de Anthropic (sk-ant-…)" value="${esc(leerClave())}" data-in="aj-clave">
-        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4">Créala en console.anthropic.com → API Keys (necesita saldo en esa cuenta). Se guarda solo en este teléfono y no entra en las copias. Al analizar, las fotos se envían a Anthropic.</div>` : ''}
+        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4">Créala en console.anthropic.com → API Keys (necesita saldo en esa cuenta). Se guarda solo en este teléfono y no entra en las copias. Al analizar, las fotos se envían a Anthropic.</div>
+        <div class="field-l mt18">CONEXIÓN CON CHATGPT Y CLAUDE</div>
+        <div class="mu" style="font-size:12px;margin-top:4px;line-height:1.4">Copia tus entrenamientos a un repositorio <b>privado</b> tuyo de GitHub para que ChatGPT o Claude los lean y te propongan cambios, que apruebas aquí. Las fotos no se suben. <a href="${GUIA_IA}" target="_blank" rel="noopener" style="color:var(--b1)">Guía paso a paso</a></div>
+        <input class="input" style="margin-top:8px;font-weight:500;font-size:14px" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="usuario/repositorio (lidiego364/fuerza-datos)" value="${esc(NB.repo || '')}" data-in="nb-repo">
+        <input class="input" style="margin-top:8px;font-weight:500;font-size:14px" type="password" autocomplete="off" spellcheck="false" placeholder="Token de GitHub (github_pat_…)" value="${esc(NB.token || '')}" data-in="nb-token">
+        <div class="grid2 mt10"><button class="btn btn-ghost" data-act="nubeSync">Sincronizar ahora</button><button class="btn btn-ghost" data-act="nubeRestaurar">Restaurar de GitHub</button></div>
+        <div class="mu" style="font-size:12px;margin-top:6px;line-height:1.4" data-nube-estado>${esc(estadoNube())}</div>` : ''}
         ${a.onboarded ? `
         <div class="field-l mt18">COPIA DE SEGURIDAD</div>
         <div class="mu" style="font-size:12px;margin-top:4px">Los datos viven en este dispositivo. Exporta una copia de vez en cuando (las fotos no se incluyen).</div>
@@ -1409,10 +1594,45 @@
     addFoto: () => $('#fileFoto').click(),
     antes: d => { ui.antes[ANGULOS[ui.ang]] = d.id; render(); },
     delFoto: async d => { if (!(await confirmar('¿Eliminar esta foto?', 'Eliminar', true))) return; try { await FotoDB.del(d.id); } catch (e) { /* ignorar */ } await cargarFotos(); render(); },
+    // Conexión con ChatGPT y Claude
+    nubeSync: () => { if (!nubeLista()) { toast('Pon el repositorio y el token'); return; } sincronizar(true); },
+    nubeRestaurar: async () => {
+      if (!nubeLista()) { toast('Pon el repositorio y el token'); return; }
+      let d;
+      try {
+        const f = await Nube.cliente(NB.repo, NB.token).leerArchivo('datos.json');
+        if (!f || !f.texto) { toast('Todavía no hay datos guardados en GitHub'); return; }
+        d = JSON.parse(f.texto);
+        if (!d || d.version !== 1 || !Array.isArray(d.sesiones)) throw new Error('formato');
+      } catch (e) { toast(e.codigo ? e.message : 'La copia de GitHub no es válida'); return; }
+      if (!(await confirmar(`Reemplazar los datos de este dispositivo por la copia de GitHub: ${d.sesiones.length} sesiones${d.exportado ? ', guardada el ' + fechaCorta(d.exportado) : ''}.`, 'Restaurar'))) return;
+      const def = defaults(), { exportado, ...resto } = d;
+      D = { ...def, ...resto, activo: null, ajustes: { ...def.ajustes, ...resto.ajustes, onboarded: true } };
+      aplicarPrograma(); save(); ui.ajustes = false; ui.screen = 'hoy'; render(); toast('Datos restaurados');
+    },
+    nubeAplicar: async () => {
+      const p = nube.propuestas[0];
+      if (!p) return;
+      const r = Nube.aplicarCambios(D.rutinas, p.cambios, normEj);
+      if (r.hechos.length) { D.rutinas = r.rutinas.map(normRutina); save(); }
+      cerrarPropuesta(p, r.hechos.length ? '✅ Aplicado en la app' : '⚠️ No se pudo aplicar ningún cambio', r);
+      toast(r.hechos.length ? `Plan actualizado (${r.hechos.length} cambio${r.hechos.length === 1 ? '' : 's'})${r.errores.length ? ' · ' + r.errores.length + ' sin aplicar' : ''}` : 'Ningún cambio se pudo aplicar');
+    },
+    nubeDescartar: () => { const p = nube.propuestas[0]; if (p) { cerrarPropuesta(p, '❌ Descartado en la app', null); toast('Propuesta descartada'); } },
     // Copias
-    export: () => {
-      const blob = new Blob([JSON.stringify(D, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fuerza-' + isoDia() + '.json';
+    export: async () => {
+      const json = JSON.stringify(D, null, 2), nombre = 'fuerza-' + isoDia() + '.json';
+      if (window.claude && typeof window.claude.use === 'function') {
+        try {
+          const dl = await window.claude.use('downloads');
+          if (dl) { await dl.save({ filename: nombre, data: json }); toast('Copia exportada'); return; }
+        } catch (e) {
+          if (e && e.code === 'declined') return;
+          if (e && e.code === 'rate_limited') { toast('Espera un momento y vuelve a intentarlo'); return; }
+        }
+      }
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },
     import: () => $('#fileImport').click(),
@@ -1460,6 +1680,11 @@
     'aj-altura': el => { const v = parseFloat(String(el.value).replace(',', '.')); D.ajustes.altura = v > 100 && v < 250 ? v : null; save(); },
     'aj-clave': el => { guardarClave(el.value.trim()); },
     'an-clave': el => { ui.claveTmp = el.value; },
+    'nb-repo': el => {
+      NB.repo = el.value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+      Object.assign(NB, { verificado: false, issue: null, hResumen: null, hDatos: null, ultimoId: 0, desde: null, error: '' }); guardarNube();
+    },
+    'nb-token': el => { NB.token = el.value.trim(); NB.verificado = false; NB.error = ''; guardarNube(); },
     'aj-desc': el => { D.ajustes.descanso = clamp(parseInt(el.value) || 90, 10, 600); save(); }
   };
 
@@ -1539,4 +1764,7 @@
 
   render();
   cargarFotos();
+  if (nubeLista()) setTimeout(() => sincronizar(false), 1500);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && nubeLista() && Date.now() - nube.revisado > 60000) sincronizar(false); });
+  window.addEventListener('online', () => { if (nubeLista()) programarSync(2000); });
 })();

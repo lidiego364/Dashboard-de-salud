@@ -44,6 +44,16 @@ En Ajustes → *Importar* (o en Progreso → Fuerza, si aún no hay historial) e
 
 El historial nunca sale del teléfono: el CSV se lee en el navegador.
 
+## Conexión con ChatGPT y Claude
+
+Opcional. En Ajustes → *Conexión con ChatGPT y Claude*, con un repositorio **privado** de GitHub y un token de acceso fino, [`nube.js`](nube.js):
+
+- Escribe un resumen en markdown (perfil, plan con la próxima sesión sugerida, tendencias, sesiones de las últimas semanas, peso, medidas y último análisis) en el cuerpo del issue *Fuerza · Entrenador IA*, y una copia completa sin fotos en `datos.json`.
+- Lee los comentarios de ese issue: un bloque ```` ```fuerza ```` con `{ "motivo", "cambios": [...] }` aparece en *Hoy* como propuesta. Al aplicarla o descartarla, la app responde en el issue.
+- Se sincroniza al terminar un entrenamiento, al guardar peso, medidas o rutinas y al abrir la app. Se niega a usar un repositorio público. El token no entra en las copias.
+
+Guía para crear el GPT de ChatGPT: [`chatgpt/README.md`](../chatgpt/README.md).
+
 ## Programa
 
 Las rutinas se definen en [`programa.js`](programa.js). Para cargar un programa nuevo, edítalo y **sube `version`**: la app reemplaza las rutinas y conserva el historial, el peso y las fotos.

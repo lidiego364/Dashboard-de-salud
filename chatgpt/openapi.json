@@ -1,0 +1,53 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fuerza · datos de entrenamiento",
+    "description": "Lee el resumen de entrenamiento que publica la app Fuerza en un repositorio privado de GitHub y deja propuestas de cambios al plan como comentarios.",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "https://api.github.com" }],
+  "paths": {
+    "/repos/lidiego364/fuerza-datos/issues/1": {
+      "get": {
+        "operationId": "leerResumen",
+        "summary": "Lee el resumen actual: perfil, plan por día, próxima sesión sugerida, tendencias, sesiones recientes, peso, medidas y último análisis de fotos. El texto está en el campo body.",
+        "responses": {
+          "200": {
+            "description": "Issue con el resumen en markdown",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "body": { "type": "string" }, "updated_at": { "type": "string" } } } } }
+          }
+        }
+      }
+    },
+    "/repos/lidiego364/fuerza-datos/issues/1/comments": {
+      "get": {
+        "operationId": "leerComentarios",
+        "summary": "Lee los comentarios del issue: propuestas anteriores y las respuestas de la app (Aplicado / Descartado).",
+        "parameters": [
+          { "name": "per_page", "in": "query", "required": false, "schema": { "type": "integer", "default": 30, "maximum": 100 } },
+          { "name": "since", "in": "query", "required": false, "description": "Solo comentarios desde esta fecha ISO 8601", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de comentarios",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "body": { "type": "string" }, "created_at": { "type": "string" } } } } } }
+          }
+        }
+      },
+      "post": {
+        "operationId": "proponerCambios",
+        "summary": "Publica una propuesta de cambios al plan. El cuerpo debe incluir un bloque de código marcado fuerza con el JSON de cambios. La persona la aprueba o descarta en la app.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["body"], "properties": { "body": { "type": "string", "description": "Explicación breve y luego un bloque ```fuerza con JSON {\"motivo\": \"...\", \"cambios\": [...]}" } } } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Comentario creado",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "integer" }, "html_url": { "type": "string" } } } } }
+          }
+        }
+      }
+    }
+  }
+}
